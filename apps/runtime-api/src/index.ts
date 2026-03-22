@@ -1,14 +1,9 @@
-import Fastify from 'fastify';
+import 'dotenv/config';
+import { buildApp } from './app.js';
 
-const app = Fastify({ logger: true });
+const port = Number(process.env.RUNTIME_API_PORT ?? process.env.PORT ?? 4000);
 
-app.get('/health', async () => ({
-  status: 'ok',
-  service: 'runtime-api',
-  timestamp: new Date().toISOString(),
-}));
-
-const port = Number(process.env.PORT ?? 4000);
+const app = await buildApp();
 app.listen({ port, host: '0.0.0.0' }, (err) => {
   if (err) {
     app.log.error(err);
