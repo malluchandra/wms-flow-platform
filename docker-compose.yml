@@ -1,0 +1,66 @@
+# docker-compose.yml
+# Local development: PostgreSQL 16 + Redis 7
+# App services are run via pnpm dev (not Docker) during development.
+# Uncomment app services after Plans 1B/1C/1D/1E add Dockerfiles.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    environment:
+      POSTGRES_DB: wms_platform
+      POSTGRES_USER: wms
+      POSTGRES_PASSWORD: wms_local
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wms -d wms_platform"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ─── App services (uncomment after Dockerfiles are added) ───
+  #
+  # builder:
+  #   build: ./apps/builder
+  #   ports: ["3000:3000"]
+  #   environment:
+  #     DATABASE_URL: postgresql://wms:wms_local@postgres:5432/wms_platform
+  #     NEXT_PUBLIC_RUNTIME_API_URL: http://localhost:4000
+  #     NEXT_PUBLIC_AI_API_URL: http://localhost:4002
+  #   depends_on: [postgres]
+  #
+  # runtime-api:
+  #   build: ./apps/runtime-api
+  #   ports: ["4000:4000"]
+  #   environment:
+  #     DATABASE_URL: postgresql://wms:wms_local@postgres:5432/wms_platform
+  #     REDIS_URL: redis://redis:6379
+  #   depends_on: [postgres, redis]
+  #
+  # realtime:
+  #   build: ./apps/realtime
+  #   ports: ["4001:4001"]
+  #   environment:
+  #     REDIS_URL: redis://redis:6379
+  #   depends_on: [redis]
+  #
+  # ai-service:
+  #   build: ./apps/ai-service
+  #   ports: ["4002:4002"]
+  #   environment:
+  #     ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+
+volumes:
+  postgres_data:
