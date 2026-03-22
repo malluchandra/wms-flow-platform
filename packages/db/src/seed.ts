@@ -401,6 +401,9 @@ async function main() {
       },
     });
     if (existingOrder) {
+      await prisma.taskLine.deleteMany({
+        where: { order_line: { order_id: existingOrder.id } },
+      });
       await prisma.orderLine.deleteMany({
         where: { order_id: existingOrder.id },
       });
