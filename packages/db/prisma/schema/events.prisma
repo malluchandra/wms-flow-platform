@@ -1,0 +1,39 @@
+model ScanEvent {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenant_id        String   @db.Uuid
+  worker_id        String   @db.Uuid
+  task_id          String?  @db.Uuid
+  flow_id          String?  @db.Uuid
+  step_id          String?
+  barcode_raw      String
+  barcode_type     String?
+  parsed_data      Json?
+  result           String
+  rejection_reason String?
+  device_id        String?
+  timestamp        DateTime @default(now()) @db.Timestamptz()
+
+  tenant Tenant @relation(fields: [tenant_id], references: [id])
+  worker Worker @relation(fields: [worker_id], references: [id])
+
+  @@map("scan_events")
+  @@schema("events")
+}
+
+model AuditLog {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenant_id   String   @db.Uuid
+  actor_id    String   @db.Uuid
+  action      String
+  entity_type String
+  entity_id   String?  @db.Uuid
+  before_data Json?
+  after_data  Json?
+  timestamp   DateTime @default(now()) @db.Timestamptz()
+
+  tenant Tenant @relation(fields: [tenant_id], references: [id])
+  actor  Worker @relation(fields: [actor_id], references: [id])
+
+  @@map("audit_log")
+  @@schema("events")
+}

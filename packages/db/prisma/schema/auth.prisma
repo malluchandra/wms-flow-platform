@@ -1,0 +1,45 @@
+model Tenant {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name       String
+  slug       String   @unique
+  is_active  Boolean  @default(true)
+  created_at DateTime @default(now()) @db.Timestamptz()
+
+  workers         Worker[]
+  flow_definitions FlowDefinition[]
+  items           Item[]
+  locations       Location[]
+  inventory       Inventory[]
+  orders          Order[]
+  order_lines     OrderLine[]
+  waves           Wave[]
+  tasks           Task[]
+  scan_events     ScanEvent[]
+  audit_logs      AuditLog[]
+
+  @@map("tenants")
+  @@schema("auth")
+}
+
+model Worker {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenant_id  String   @db.Uuid
+  name       String
+  badge_id   String
+  role       String
+  is_active  Boolean  @default(true)
+  created_at DateTime @default(now()) @db.Timestamptz()
+
+  tenant           Tenant          @relation(fields: [tenant_id], references: [id])
+  sessions         WorkerSession[]
+  created_flows    FlowDefinition[] @relation("flow_created_by")
+  released_waves   Wave[]          @relation("wave_released_by")
+  assigned_tasks   Task[]          @relation("task_assigned_to")
+  picked_lines     TaskLine[]      @relation("task_line_picked_by")
+  scan_events      ScanEvent[]
+  audit_logs       AuditLog[]
+
+  @@unique([tenant_id, badge_id])
+  @@map("workers")
+  @@schema("auth")
+}

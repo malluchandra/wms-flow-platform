@@ -1,0 +1,182 @@
+model Item {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenant_id       String   @db.Uuid
+  sku             String
+  name            String
+  upc             String[]
+  uom             String   @default("EA")
+  weight_kg       Decimal? @db.Decimal(10, 4)
+  lot_tracked     Boolean  @default(false)
+  serial_tracked  Boolean  @default(false)
+  velocity_class  String?
+  storage_type    String   @default("ambient")
+  is_active       Boolean  @default(true)
+
+  tenant     Tenant      @relation(fields: [tenant_id], references: [id])
+  inventory  Inventory[]
+  order_lines OrderLine[]
+  task_lines  TaskLine[]
+
+  @@unique([tenant_id, sku])
+  @@map("items")
+  @@schema("core")
+}
+
+model Location {
+  id        String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenant_id String  @db.Uuid
+  barcode   String
+  zone      String
+  aisle     String?
+  bay       String?
+  level     String?
+  position  String?
+  type      String  @default("rack")
+  status    String  @default("active")
+  max_lpns  Int     @default(1)
+
+  tenant         Tenant      @relation(fields: [tenant_id], references: [id])
+  inventory      Inventory[]
+  task_lines     TaskLine[]
+  source_tasks   Task[]      @relation("task_source_location")
+  dest_tasks     Task[]      @relation("task_dest_location")
+
+  @@unique([tenant_id, barcode])
+  @@map("locations")
+  @@schema("core")
+}
+
+model Inventory {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenant_id     String   @db.Uuid
+  item_id       String   @db.Uuid
+  location_id   String   @db.Uuid
+  lot_number    String?
+  expiry_date   DateTime? @db.Date
+  qty_on_hand   Decimal  @default(0) @db.Decimal(12, 4)
+  qty_reserved  Decimal  @default(0) @db.Decimal(12, 4)
+  updated_at    DateTime @default(now()) @updatedAt @db.Timestamptz()
+
+  tenant   Tenant   @relation(fields: [tenant_id], references: [id])
+  item     Item     @relation(fields: [item_id], references: [id])
+  location Location @relation(fields: [location_id], references: [id])
+
+  @@map("inventory")
+  @@schema("core")
+}
+
+model Order {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenant_id     String    @db.Uuid
+  order_number  String
+  status        String    @default("new")
+  ship_by       DateTime? @db.Timestamptz()
+  carrier       String?
+  ship_to       Json?
+
+  tenant      Tenant       @relation(fields: [tenant_id], references: [id])
+  order_lines OrderLine[]
+  wave_orders WaveOrder[]
+
+  @@unique([tenant_id, order_number])
+  @@map("orders")
+  @@schema("core")
+}
+
+model OrderLine {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenant_id   String  @db.Uuid
+  order_id    String  @db.Uuid
+  item_id     String  @db.Uuid
+  qty_ordered Decimal @db.Decimal(12, 4)
+  qty_picked  Decimal @default(0) @db.Decimal(12, 4)
+  qty_shipped Decimal @default(0) @db.Decimal(12, 4)
+  status      String  @default("open")
+
+  tenant     Tenant    @relation(fields: [tenant_id], references: [id])
+  order      Order     @relation(fields: [order_id], references: [id])
+  item       Item      @relation(fields: [item_id], references: [id])
+  task_lines TaskLine[]
+
+  @@index([tenant_id])
+  @@map("order_lines")
+  @@schema("core")
+}
+
+model Wave {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenant_id   String    @db.Uuid
+  status      String    @default("planning")
+  released_at DateTime? @db.Timestamptz()
+  released_by String?   @db.Uuid
+
+  tenant      Tenant      @relation(fields: [tenant_id], references: [id])
+  releaser    Worker?     @relation("wave_released_by", fields: [released_by], references: [id])
+  wave_orders WaveOrder[]
+  tasks       Task[]
+
+  @@map("waves")
+  @@schema("core")
+}
+
+model WaveOrder {
+  wave_id  String @db.Uuid
+  order_id String @db.Uuid
+
+  wave  Wave  @relation(fields: [wave_id], references: [id])
+  order Order @relation(fields: [order_id], references: [id])
+
+  @@id([wave_id, order_id])
+  @@map("wave_orders")
+  @@schema("core")
+}
+
+model Task {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenant_id          String    @db.Uuid
+  wave_id            String?   @db.Uuid
+  type               String
+  status             String    @default("unassigned")
+  priority           Int       @default(5)
+  assigned_to        String?   @db.Uuid
+  assigned_at        DateTime? @db.Timestamptz()
+  completed_at       DateTime? @db.Timestamptz()
+  source_location_id String?   @db.Uuid
+  dest_location_id   String?   @db.Uuid
+  created_at         DateTime  @default(now()) @db.Timestamptz()
+
+  tenant          Tenant    @relation(fields: [tenant_id], references: [id])
+  wave            Wave?     @relation(fields: [wave_id], references: [id])
+  assigned_worker Worker?   @relation("task_assigned_to", fields: [assigned_to], references: [id])
+  source_location Location? @relation("task_source_location", fields: [source_location_id], references: [id])
+  dest_location   Location? @relation("task_dest_location", fields: [dest_location_id], references: [id])
+  task_lines      TaskLine[]
+
+  @@index([assigned_to, status])
+  @@map("tasks")
+  @@schema("core")
+}
+
+model TaskLine {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  task_id       String    @db.Uuid
+  order_line_id String    @db.Uuid
+  item_id       String    @db.Uuid
+  location_id   String    @db.Uuid
+  lot_number    String?
+  qty_required  Decimal   @db.Decimal(12, 4)
+  qty_picked    Decimal   @default(0) @db.Decimal(12, 4)
+  status        String    @default("open")
+  picked_by     String?   @db.Uuid
+  picked_at     DateTime? @db.Timestamptz()
+
+  task       Task      @relation(fields: [task_id], references: [id])
+  order_line OrderLine @relation(fields: [order_line_id], references: [id])
+  item       Item      @relation(fields: [item_id], references: [id])
+  location   Location  @relation(fields: [location_id], references: [id])
+  picker     Worker?   @relation("task_line_picked_by", fields: [picked_by], references: [id])
+
+  @@index([task_id])
+  @@map("task_lines")
+  @@schema("core")
+}

@@ -1,0 +1,44 @@
+model FlowDefinition {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenant_id     String    @db.Uuid
+  name          String
+  display_name  String
+  base_flow_id  String?   @db.Uuid
+  version       String
+  definition    Json
+  is_active     Boolean   @default(false)
+  environment   String
+  created_by    String?   @db.Uuid
+  deployed_at   DateTime? @db.Timestamptz()
+  created_at    DateTime  @default(now()) @db.Timestamptz()
+
+  tenant    Tenant          @relation(fields: [tenant_id], references: [id])
+  base_flow FlowDefinition? @relation("flow_inheritance", fields: [base_flow_id], references: [id])
+  children  FlowDefinition[] @relation("flow_inheritance")
+  creator   Worker?         @relation("flow_created_by", fields: [created_by], references: [id])
+  sessions  WorkerSession[]
+
+  @@unique([tenant_id, name, version, environment])
+  @@map("flow_definitions")
+  @@schema("flow")
+}
+
+model WorkerSession {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  worker_id  String   @db.Uuid
+  flow_id    String   @db.Uuid
+  task_id    String?  @db.Uuid
+  step_index Int      @default(0)
+  state_data Json     @default("{}")
+  status     String   @default("active")
+  device_id  String?
+  started_at DateTime @default(now()) @db.Timestamptz()
+  updated_at DateTime @default(now()) @updatedAt @db.Timestamptz()
+
+  worker Worker         @relation(fields: [worker_id], references: [id])
+  flow   FlowDefinition @relation(fields: [flow_id], references: [id])
+
+  @@index([worker_id, status])
+  @@map("worker_sessions")
+  @@schema("flow")
+}
