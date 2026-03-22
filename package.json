@@ -1,0 +1,22 @@
+{
+  "name": "wms-flow-platform",
+  "version": "0.0.1",
+  "private": true,
+  "packageManager": "pnpm@9.1.0",
+  "scripts": {
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "db:generate": "pnpm --filter @wms/db generate",
+    "db:migrate": "pnpm --filter @wms/db migrate:dev",
+    "db:migrate:deploy": "pnpm --filter @wms/db migrate:deploy",
+    "db:seed": "pnpm --filter @wms/db seed",
+    "db:studio": "pnpm --filter @wms/db studio"
+  },
+  "devDependencies": {
+    "turbo": "^2.0.0",
+    "typescript": "^5.4.0"
+  }
+}

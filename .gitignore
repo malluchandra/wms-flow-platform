@@ -1,0 +1,29 @@
+node_modules/
+dist/
+.env
+.env.local
+.turbo/
+*.tsbuildinfo
+
+# Prisma
+packages/db/prisma/generated/
+
+# Android
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+*.apk
+*.aab
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Next.js
+.next/
