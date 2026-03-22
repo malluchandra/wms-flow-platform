@@ -7,13 +7,21 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "fastify": "^4.27.0"
+    "@fastify/jwt": "^8.0.0",
+    "@wms/db": "workspace:*",
+    "@wms/types": "workspace:*",
+    "dotenv": "^16.4.0",
+    "fastify": "^4.27.0",
+    "fastify-plugin": "^4.0.0",
+    "ioredis": "^5.4.0"
   },
   "devDependencies": {
     "tsx": "^4.0.0",
-    "typescript": "^5.4.0"
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
   }
 }
