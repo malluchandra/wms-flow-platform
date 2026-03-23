@@ -62,8 +62,9 @@ export default async function taskRoutes(app: FastifyInstance) {
     const workerId = req.user.sub;
     const tenantId = req.user.tenant_id;
 
+    // Verify the task line exists and belongs to the caller's tenant (via task join)
     const taskLine = await app.prisma.taskLine.findFirst({
-      where: { id: lineId, task_id: taskId },
+      where: { id: lineId, task_id: taskId, task: { tenant_id: tenantId } },
     });
 
     if (!taskLine) {
@@ -73,55 +74,56 @@ export default async function taskRoutes(app: FastifyInstance) {
     const isComplete = qty_picked >= Number(taskLine.qty_required);
     const lineStatus = isComplete ? 'complete' : 'short';
 
-    // Update task line
-    const updatedLine = await app.prisma.taskLine.update({
-      where: { id: lineId },
-      data: {
-        qty_picked,
-        status: lineStatus,
-        picked_by: workerId,
-        picked_at: new Date(),
-        lot_number: lot_number ?? taskLine.lot_number,
-      },
-    });
-
-    // Update order line qty_picked
-    await app.prisma.orderLine.update({
-      where: { id: taskLine.order_line_id },
-      data: {
-        qty_picked: { increment: qty_picked },
-        status: isComplete ? 'complete' : 'partial',
-      },
-    });
-
-    // Decrement inventory
-    const inventory = await app.prisma.inventory.findFirst({
-      where: {
-        tenant_id: tenantId,
-        item_id: taskLine.item_id,
-        location_id: taskLine.location_id,
-      },
-    });
-
-    if (inventory) {
-      await app.prisma.inventory.update({
-        where: { id: inventory.id },
+    // Wrap all writes in a transaction for atomicity
+    const updatedLine = await app.prisma.$transaction(async (tx) => {
+      const line = await tx.taskLine.update({
+        where: { id: lineId },
         data: {
-          qty_on_hand: { decrement: qty_picked },
+          qty_picked,
+          status: lineStatus,
+          picked_by: workerId,
+          picked_at: new Date(),
+          lot_number: lot_number ?? taskLine.lot_number,
         },
       });
-    }
 
-    // Audit log
-    await app.prisma.auditLog.create({
-      data: {
-        tenant_id: tenantId,
-        actor_id: workerId,
-        action: 'task_line.complete',
-        entity_type: 'task_line',
-        entity_id: lineId,
-        after_data: { qty_picked, lot_number, status: lineStatus },
-      },
+      await tx.orderLine.update({
+        where: { id: taskLine.order_line_id },
+        data: {
+          qty_picked: { increment: qty_picked },
+          status: isComplete ? 'complete' : 'partial',
+        },
+      });
+
+      const inventory = await tx.inventory.findFirst({
+        where: {
+          tenant_id: tenantId,
+          item_id: taskLine.item_id,
+          location_id: taskLine.location_id,
+        },
+      });
+
+      if (inventory) {
+        await tx.inventory.update({
+          where: { id: inventory.id },
+          data: {
+            qty_on_hand: { decrement: qty_picked },
+          },
+        });
+      }
+
+      await tx.auditLog.create({
+        data: {
+          tenant_id: tenantId,
+          actor_id: workerId,
+          action: 'task_line.complete',
+          entity_type: 'task_line',
+          entity_id: lineId,
+          after_data: { qty_picked, lot_number, status: lineStatus },
+        },
+      });
+
+      return line;
     });
 
     return updatedLine;
@@ -202,11 +204,11 @@ export default async function taskRoutes(app: FastifyInstance) {
     const { worker_id, step_id } = req.body;
     const tenantId = req.user.tenant_id;
 
-    // Audit log
+    // Audit log — actor comes from verified JWT, not the request body
     await app.prisma.auditLog.create({
       data: {
         tenant_id: tenantId,
-        actor_id: worker_id,
+        actor_id: req.user.sub,
         action: 'task.escalate',
         entity_type: 'task',
         entity_id: taskId,

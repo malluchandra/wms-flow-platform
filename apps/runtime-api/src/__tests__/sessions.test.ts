@@ -32,6 +32,11 @@ describe('Session routes', () => {
     await prisma.workerSession.deleteMany({
       where: { worker_id: workerId },
     });
+    // Reset any tasks that were marked in_progress during session creation
+    await prisma.task.updateMany({
+      where: { assigned_to: workerId },
+      data: { status: 'unassigned', assigned_to: null, assigned_at: null },
+    });
     await app.close();
   });
 
@@ -53,8 +58,12 @@ describe('Session routes', () => {
       expect(body.state_data.task_line.item).toBeDefined();
       expect(body.state_data.task_line.location).toBeDefined();
 
-      // Clean up
+      // Clean up session and reset task state
       await prisma.workerSession.delete({ where: { id: body.id } });
+      await prisma.task.update({
+        where: { id: taskId },
+        data: { status: 'unassigned', assigned_to: null, assigned_at: null },
+      });
     });
 
     it('returns 400 if flow_id is missing', async () => {
@@ -65,6 +74,44 @@ describe('Session routes', () => {
         payload: { task_id: taskId },
       });
       expect(res.statusCode).toBe(400);
+    });
+
+    it('returns 404 if flow does not belong to tenant', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/sessions',
+        headers: { authorization: `Bearer ${token}` },
+        payload: { flow_id: '00000000-0000-0000-0000-000000000000', task_id: taskId },
+      });
+      expect(res.statusCode).toBe(404);
+      const body = JSON.parse(res.payload);
+      expect(body.error).toBe('Flow not found');
+    });
+
+    it('returns 409 if worker already has an active session', async () => {
+      // Create first session
+      const firstRes = await app.inject({
+        method: 'POST',
+        url: '/sessions',
+        headers: { authorization: `Bearer ${token}` },
+        payload: { flow_id: flowId },
+      });
+      expect(firstRes.statusCode).toBe(201);
+      const firstSession = JSON.parse(firstRes.payload);
+
+      // Attempt to create a second session while first is active
+      const secondRes = await app.inject({
+        method: 'POST',
+        url: '/sessions',
+        headers: { authorization: `Bearer ${token}` },
+        payload: { flow_id: flowId },
+      });
+      expect(secondRes.statusCode).toBe(409);
+      const body = JSON.parse(secondRes.payload);
+      expect(body.session_id).toBe(firstSession.id);
+
+      // Clean up
+      await prisma.workerSession.delete({ where: { id: firstSession.id } });
     });
   });
 
@@ -90,8 +137,12 @@ describe('Session routes', () => {
       expect(body.status).toBe('active');
       expect(body.flow).toBeDefined();
 
-      // Clean up
+      // Clean up session and reset task state
       await prisma.workerSession.delete({ where: { id: session.id } });
+      await prisma.task.update({
+        where: { id: taskId },
+        data: { status: 'unassigned', assigned_to: null, assigned_at: null },
+      });
     });
 
     it('returns 404 when no active session exists', async () => {
@@ -127,9 +178,14 @@ describe('Session routes', () => {
       const body = JSON.parse(res.payload);
       expect(body.step_index).toBe(1);
       expect(body.state_data.location_confirmed).toBe(false);
+      expect(body.state_data.last_step_id).toBe('navigate-to-location');
 
-      // Clean up
+      // Clean up session and reset task state
       await prisma.workerSession.delete({ where: { id: session.id } });
+      await prisma.task.update({
+        where: { id: taskId },
+        data: { status: 'unassigned', assigned_to: null, assigned_at: null },
+      });
     });
   });
 
@@ -154,8 +210,12 @@ describe('Session routes', () => {
       expect(typeof body.has_more).toBe('boolean');
       expect(typeof body.current_line_index).toBe('number');
 
-      // Clean up
+      // Clean up session and reset task state
       await prisma.workerSession.delete({ where: { id: session.id } });
+      await prisma.task.update({
+        where: { id: taskId },
+        data: { status: 'unassigned', assigned_to: null, assigned_at: null },
+      });
     });
   });
 

@@ -31,6 +31,23 @@ export default async function sessionRoutes(app: FastifyInstance) {
   }, async (req: FastifyRequest<{ Body: CreateSessionBody }>, reply: FastifyReply) => {
     const { flow_id, task_id, device_id } = req.body;
     const workerId = req.user.sub;
+    const tenantId = req.user.tenant_id;
+
+    // Verify the flow belongs to this tenant
+    const flow = await app.prisma.flowDefinition.findFirst({
+      where: { id: flow_id, tenant_id: tenantId },
+    });
+    if (!flow) {
+      return reply.code(404).send({ error: 'Flow not found' });
+    }
+
+    // Check for existing active session (prevent duplicates)
+    const existingSession = await app.prisma.workerSession.findFirst({
+      where: { worker_id: workerId, status: 'active' },
+    });
+    if (existingSession) {
+      return reply.code(409).send({ error: 'Worker already has an active session', session_id: existingSession.id });
+    }
 
     // Pre-generate UUID so we can include session_id in state_data in a single insert
     const sessionId = randomUUID();
@@ -68,9 +85,9 @@ export default async function sessionRoutes(app: FastifyInstance) {
         };
       }
 
-      // Mark task as in_progress
-      await app.prisma.task.update({
-        where: { id: task_id },
+      // Mark task as in_progress (scoped to tenant for safety)
+      await app.prisma.task.updateMany({
+        where: { id: task_id, tenant_id: tenantId },
         data: { assigned_to: workerId, status: 'in_progress', assigned_at: new Date() },
       });
     }
@@ -149,9 +166,9 @@ export default async function sessionRoutes(app: FastifyInstance) {
       return reply.code(403).send({ error: 'Forbidden' });
     }
 
-    // Merge new state_data into existing
+    // Merge new state_data into existing, and persist the last committed step_id
     const existingState = session.state_data as Record<string, unknown>;
-    const mergedState = { ...existingState, ...state_data };
+    const mergedState = { ...existingState, ...state_data, last_step_id: step_id };
 
     const updated = await app.prisma.workerSession.update({
       where: { id },
