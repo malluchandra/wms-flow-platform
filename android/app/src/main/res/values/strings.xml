@@ -1,0 +1,13 @@
+<resources>
+    <string name="app_name">WMS Player</string>
+    <string name="login_title">Warehouse Login</string>
+    <string name="badge_scan_prompt">Scan your badge to log in</string>
+    <string name="tenant_slug_hint">Warehouse ID</string>
+    <string name="resume_task_title">Resume Task?</string>
+    <string name="resume_task_message">You have an active session. Resume where you left off?</string>
+    <string name="step_not_supported">Step type not supported — update the app</string>
+    <string name="scan_validating">Validating…</string>
+    <string name="scan_error_retry">Scan error — try again</string>
+    <string name="no_tasks">No tasks assigned</string>
+    <string name="connection_lost">Connection lost — reconnecting…</string>
+</resources>
