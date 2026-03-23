@@ -1,30 +1,97 @@
 'use client';
 
+import { memo } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
+import { STEP_META, getTagClass } from '@/lib/step-meta';
 
-const TYPE_COLORS: Record<string, string> = {
-  navigate: 'border-blue-400 bg-blue-50',
-  scan: 'border-green-400 bg-green-50',
-  number_input: 'border-yellow-400 bg-yellow-50',
-  confirm: 'border-purple-400 bg-purple-50',
-  menu_select: 'border-orange-400 bg-orange-50',
-  message: 'border-gray-400 bg-gray-50',
-  camera_input: 'border-teal-400 bg-teal-50',
-  api_call: 'border-red-400 bg-red-50',
-  print: 'border-indigo-400 bg-indigo-50',
-};
+interface StepNodeData {
+  label: string;
+  stepType: string;
+  stepId: string;
+  isEntry?: boolean;
+  severity?: string;
+  transitions?: Array<{ key: string; display: string; target?: string }>;
+  [key: string]: unknown;
+}
 
-export function StepNode({ data, selected }: NodeProps) {
-  const colorClass = TYPE_COLORS[data.stepType as string] ?? 'border-gray-300 bg-white';
-  const selectedClass = selected ? 'ring-2 ring-blue-500 ring-offset-2 shadow-md' : 'shadow-sm';
+export const StepNode = memo(function StepNode({ data, selected }: NodeProps) {
+  const d = data as StepNodeData;
+  const meta = STEP_META[d.stepType] ?? STEP_META.message;
+  const transitions = d.transitions ?? [];
+
+  // Determine node modifier for border-top color
+  let borderTopColor = meta.borderColor;
+  let bgExtra = '';
+  if (d.isEntry) {
+    borderTopColor = '#2563eb'; // accent blue for entry
+  }
+  if (d.severity === 'error' || d.stepId.includes('error')) {
+    borderTopColor = '#dc2626';
+  }
+  if (d.severity === 'success' || d.stepId.includes('complete')) {
+    borderTopColor = '#16a34a';
+    bgExtra = '#f0fdf4';
+  }
+  if (d.stepType === 'menu_select' && d.stepId.includes('exception')) {
+    borderTopColor = '#dc2626';
+  }
+  if (d.stepType === 'menu_select' && d.stepId.includes('short')) {
+    borderTopColor = '#d97706';
+  }
+
+  // Badge extra label (entry/error/exit/exception)
+  let badgeExtra = '';
+  if (d.isEntry) badgeExtra = ' \u00b7 entry';
+  if (d.severity === 'error' || d.stepId.includes('error')) badgeExtra = ' \u00b7 error';
+  if (d.severity === 'success' || d.stepId.includes('complete')) badgeExtra = ' \u00b7 terminal';
+  if (d.stepId.includes('exception')) badgeExtra = ' \u00b7 exception';
+
+  // Badge class override for error/exit nodes
+  let badgeClass = meta.badgeClass;
+  if (d.severity === 'error' || d.stepId.includes('error')) badgeClass = 'badge-err';
+  if (d.severity === 'success' || d.stepId.includes('complete')) badgeClass = 'badge-ok';
 
   return (
-    <div className={`border-2 rounded-lg px-4 py-3 min-w-[180px] ${colorClass} ${selectedClass}`}>
-      <Handle type="target" position={Position.Top} className="!bg-gray-400" />
-      <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">{data.stepType as string}</div>
-      <div className="font-medium text-sm">{data.label as string}</div>
-      <div className="text-xs text-gray-400 mt-1">{data.stepId as string}</div>
-      <Handle type="source" position={Position.Bottom} className="!bg-gray-400" />
+    <div
+      className="flow-node"
+      style={{
+        borderTopColor,
+        background: bgExtra || undefined,
+        ...(selected
+          ? {
+              borderColor: '#2563eb',
+              borderTopColor: '#2563eb',
+              boxShadow: '0 0 0 2px #dbeafe, 0 2px 8px rgba(37,99,235,0.12)',
+            }
+          : {}),
+      }}
+    >
+      <Handle type="target" position={Position.Top} style={{ background: '#94a3b8', width: 6, height: 6 }} />
+
+      {/* Badge */}
+      <span className={`node-badge ${badgeClass}`}>
+        <span className="ms" style={{ fontSize: '10px' }}>{meta.icon}</span>
+        {' '}{meta.type}{badgeExtra}
+      </span>
+
+      {/* Step ID */}
+      <div className="node-id">{d.stepId}</div>
+
+      {/* Prompt */}
+      <div className="node-prompt">{d.label}</div>
+
+      {/* Transition tags */}
+      {transitions.length > 0 && (
+        <div className="node-tags">
+          {transitions.map((t) => (
+            <span key={t.key} className={`node-tag ${getTagClass(t.key, t.target)}`}>
+              {t.display}
+            </span>
+          ))}
+        </div>
+      )}
+
+      <Handle type="source" position={Position.Bottom} style={{ background: '#94a3b8', width: 6, height: 6 }} />
     </div>
   );
-}
+});
