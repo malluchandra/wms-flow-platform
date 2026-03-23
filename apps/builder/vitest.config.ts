@@ -6,6 +6,9 @@ export default defineConfig({
     globals: true,
     testTimeout: 15000,
     setupFiles: ['dotenv/config'],
+    env: {
+      DOTENV_CONFIG_PATH: '.env.local',
+    },
     passWithNoTests: true,
   },
   resolve: {
