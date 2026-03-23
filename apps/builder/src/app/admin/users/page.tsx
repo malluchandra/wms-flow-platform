@@ -1,6 +1,5 @@
 import { listBuilderUsers, createBuilderUser, deactivateBuilderUser } from '@/lib/admin-actions';
 import { revalidatePath } from 'next/cache';
-import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,18 +38,9 @@ export default async function AdminUsersPage() {
   }
 
   return (
-    <div style={{ padding: '32px', maxWidth: '1000px', margin: '0 auto' }}>
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <Link href="/" style={{ fontSize: '11px', color: 'var(--accent)', textDecoration: 'none' }}>
-              ← Back to Flows
-            </Link>
-          </div>
-          <h1 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--brand)' }}>User Management</h1>
-          <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Manage builder users for your tenant</p>
-        </div>
-      </div>
+    <div style={{ padding: '32px', maxWidth: '1000px' }}>
+      <h1 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--brand)', marginBottom: '4px' }}>User Management</h1>
+      <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '24px' }}>Manage builder users for your tenant</p>
 
       {error && (
         <div style={{ padding: '12px 14px', marginBottom: '16px', background: 'var(--err-lt)', border: '1px solid var(--err)', borderRadius: '4px', color: 'var(--err)', fontSize: '12px' }}>
