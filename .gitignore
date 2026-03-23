@@ -27,3 +27,6 @@ Thumbs.db
 
 # Next.js
 .next/
+
+# Worktrees
+.worktrees/
