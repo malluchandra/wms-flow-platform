@@ -19,7 +19,7 @@ export interface LintError {
 
 // ─── Sentinel Values ──────────────────────────────────────────
 
-const SENTINELS = new Set(['__exit__', '__abandon__']);
+const SENTINELS = new Set(['__exit__', '__abandon__', '__continue__']);
 
 /** Template expressions that are valid step references (not real step IDs) */
 const TEMPLATE_STEP_REFS = new Set(['{{caller_step}}']);
@@ -116,6 +116,37 @@ export function validateFlow(flow: FlowDefinition): LintError[] {
         });
       }
       seen.add(step.id);
+    }
+  }
+
+  // Rule 6: EXTEND_LOCKED_STEP_MODIFIED (extend mode only)
+  if (flow.extension_mode === 'extend') {
+    for (const step of flow.steps) {
+      if (step._source === 'override') {
+        errors.push({
+          code: 'EXTEND_LOCKED_STEP_MODIFIED',
+          message: `Step "${step.id}" is a base step modified in extend mode. Use override mode to modify base steps.`,
+          step_id: step.id,
+        });
+      }
+    }
+  }
+
+  // Rule 7: ORPHANED_INJECTION
+  if (flow.extension_mode === 'extend' || flow.extension_mode === 'override') {
+    const extensionPoints = new Set(
+      flow.steps
+        .filter((s) => s._source === 'base' && s.extension_point)
+        .map((s) => s.extension_point!)
+    );
+    for (const step of flow.steps) {
+      if (step._injected_at && !extensionPoints.has(step._injected_at)) {
+        errors.push({
+          code: 'ORPHANED_INJECTION',
+          message: `Step "${step.id}" is injected at extension point "${step._injected_at}" which does not exist in the base flow.`,
+          step_id: step.id,
+        });
+      }
     }
   }
 

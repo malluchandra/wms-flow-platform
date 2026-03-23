@@ -151,3 +151,71 @@ describe('validateFlow — DUPLICATE_STEP_ID', () => {
     expect(errors.some((e) => e.code === 'DUPLICATE_STEP_ID')).toBe(true);
   });
 });
+
+describe('extension-specific rules', () => {
+  it('EXTEND_LOCKED_STEP_MODIFIED — detects modified base step in extend mode', () => {
+    const flow: FlowDefinition = {
+      id: 'test', name: 'test', version: '1.0.0', display_name: 'Test',
+      extends: 'base-id', extension_mode: 'extend',
+      context_schema: {}, entry_step: 'step-1',
+      steps: [
+        { id: 'step-1', type: 'scan', prompt: 'Modified prompt', _source: 'override', on_success: '__exit__' },
+        { id: 'exception-handler', type: 'menu_select', prompt: 'Exception', _source: 'base',
+          options: [{ label: 'Cancel', value: 'cancel', next_step: '__abandon__' }] },
+      ],
+    };
+    const errors = validateFlow(flow);
+    const extendError = errors.find((e) => e.code === 'EXTEND_LOCKED_STEP_MODIFIED');
+    expect(extendError).toBeDefined();
+    expect(extendError!.step_id).toBe('step-1');
+  });
+
+  it('no EXTEND_LOCKED_STEP_MODIFIED for override mode', () => {
+    const flow: FlowDefinition = {
+      id: 'test', name: 'test', version: '1.0.0', display_name: 'Test',
+      extends: 'base-id', extension_mode: 'override',
+      context_schema: {}, entry_step: 'step-1',
+      steps: [
+        { id: 'step-1', type: 'scan', prompt: 'Modified', _source: 'override', on_success: '__exit__' },
+        { id: 'exception-handler', type: 'menu_select', prompt: 'Exception', _source: 'base',
+          options: [{ label: 'Cancel', value: 'cancel', next_step: '__abandon__' }] },
+      ],
+    };
+    const errors = validateFlow(flow);
+    expect(errors.find((e) => e.code === 'EXTEND_LOCKED_STEP_MODIFIED')).toBeUndefined();
+  });
+
+  it('ORPHANED_INJECTION — partner step references nonexistent extension point', () => {
+    const flow: FlowDefinition = {
+      id: 'test', name: 'test', version: '1.0.0', display_name: 'Test',
+      extends: 'base-id', extension_mode: 'extend',
+      context_schema: {}, entry_step: 'step-1',
+      steps: [
+        { id: 'step-1', type: 'scan', prompt: 'Scan', _source: 'base', on_success: 'custom-step', on_exception: 'exception-handler' },
+        { id: 'custom-step', type: 'message', prompt: 'Custom', _source: 'partner', _injected_at: 'nonexistent-point', on_dismiss: '__exit__' },
+        { id: 'exception-handler', type: 'menu_select', prompt: 'Exception', _source: 'base',
+          options: [{ label: 'Cancel', value: 'cancel', next_step: '__abandon__' }] },
+      ],
+    };
+    const errors = validateFlow(flow);
+    const orphanError = errors.find((e) => e.code === 'ORPHANED_INJECTION');
+    expect(orphanError).toBeDefined();
+    expect(orphanError!.step_id).toBe('custom-step');
+  });
+
+  it('no extension errors for base flows (no extension_mode)', () => {
+    const flow: FlowDefinition = {
+      id: 'test', name: 'test', version: '1.0.0', display_name: 'Test',
+      extends: null,
+      context_schema: {}, entry_step: 'step-1',
+      steps: [
+        { id: 'step-1', type: 'scan', prompt: 'Scan', on_success: '__exit__', on_exception: 'exception-handler' },
+        { id: 'exception-handler', type: 'menu_select', prompt: 'Exception',
+          options: [{ label: 'Cancel', value: 'cancel', next_step: '__abandon__' }] },
+      ],
+    };
+    const errors = validateFlow(flow);
+    expect(errors.find((e) => e.code === 'EXTEND_LOCKED_STEP_MODIFIED')).toBeUndefined();
+    expect(errors.find((e) => e.code === 'ORPHANED_INJECTION')).toBeUndefined();
+  });
+});
