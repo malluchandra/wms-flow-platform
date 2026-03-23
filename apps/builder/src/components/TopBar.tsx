@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useToast } from './Toast';
+import { UserNav } from './UserNav';
 
 export type ViewTab = 'logic' | 'designer' | 'envhub' | 'promote';
 
@@ -172,21 +173,8 @@ export function TopBar({
           notifications
         </button>
 
-        {/* Avatar */}
-        <div
-          className="flex items-center justify-center flex-shrink-0"
-          style={{
-            width: '28px',
-            height: '28px',
-            borderRadius: '50%',
-            background: 'var(--brand)',
-            fontSize: '11px',
-            fontWeight: 700,
-            color: '#fff',
-          }}
-        >
-          CK
-        </div>
+        {/* User nav */}
+        <UserNav />
       </div>
     </div>
   );
