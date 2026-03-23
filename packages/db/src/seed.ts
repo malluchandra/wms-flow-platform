@@ -55,6 +55,7 @@ const outboundPickingFlow = {
       id: 'scan-location',
       type: 'scan',
       prompt: 'Scan Location Barcode',
+      extension_point: 'after-location-scan',
       expected_value: '{{context.task_line.location.barcode}}',
       validation: {
         type: 'exact_match',
@@ -71,6 +72,7 @@ const outboundPickingFlow = {
       id: 'scan-item',
       type: 'scan',
       prompt: 'Scan Item Barcode',
+      extension_point: 'after-item-scan',
       validation: {
         type: 'api_lookup',
         endpoint: '/scans/validate',
@@ -93,6 +95,7 @@ const outboundPickingFlow = {
       id: 'enter-quantity',
       type: 'number_input',
       prompt: 'Enter Quantity',
+      extension_point: 'after-quantity-entry',
       uom: '{{context.task_line.item.uom}}',
       target: '{{context.task_line.qty_required}}',
       validation: {
@@ -111,6 +114,7 @@ const outboundPickingFlow = {
       id: 'confirm-pick',
       type: 'confirm',
       prompt: 'Confirm Pick',
+      extension_point: 'after-pick-confirm',
       summary_fields: ['location_barcode', 'item_sku', 'lot_number', 'qty_picked'],
       on_confirm: {
         api_call: {
