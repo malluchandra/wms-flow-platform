@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useUndoHistory } from '@/lib/use-undo-history';
 import { ToastProvider, useToast } from '@/components/Toast';
 import { TopBar, type ViewTab } from '@/components/TopBar';
@@ -15,6 +15,8 @@ import { TabShellPromotion } from '@/components/TabShellPromotion';
 import { SearchBar } from '@/components/SearchBar';
 import { searchFlow } from '@/lib/search-utils';
 import { STEP_META } from '@/lib/step-meta';
+import { analyzeFlowGroups } from '@/lib/flow-groups';
+import type { FlowGroup } from '@/lib/flow-groups';
 import type { FlowDefinition, FlowStep, StepType } from '@wms/types';
 
 interface FlowEditorClientProps {
@@ -171,6 +173,8 @@ function FlowEditorInner({
     ? new Set(searchResults.map((r) => r.stepId))
     : undefined;
 
+  const flowGroups = useMemo(() => analyzeFlowGroups(currentFlow), [currentFlow]);
+
   // ─── Keyboard shortcuts ───────────────────────────────────
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -265,6 +269,7 @@ function FlowEditorInner({
                 onSelectStep={handleSelectStep}
                 onFlowChange={handleFlowChange}
                 highlightedStepIds={highlightedStepIds}
+                groups={flowGroups}
               />
             </div>
             <RightPanel

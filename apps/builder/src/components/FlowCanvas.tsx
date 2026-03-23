@@ -17,6 +17,7 @@ import {
 import '@xyflow/react/dist/style.css';
 import { StepNode } from './StepNode';
 import { STEP_META } from '@/lib/step-meta';
+import type { FlowGroup } from '@/lib/flow-groups';
 import type {
   FlowDefinition,
   FlowStep,
@@ -34,6 +35,7 @@ interface FlowCanvasProps {
   onSelectStep: (stepId: string | null) => void;
   onFlowChange: (flow: FlowDefinition) => void;
   highlightedStepIds?: Set<string>;
+  groups?: FlowGroup[];
 }
 
 // ─── Transition helpers ─────────────────────────────────────
@@ -261,11 +263,47 @@ function buildEdges(flow: FlowDefinition): Edge[] {
 
 // ─── Component ──────────────────────────────────────────────
 
-export function FlowCanvas({ flow, selectedStepId, onSelectStep, onFlowChange, highlightedStepIds }: FlowCanvasProps) {
+export function FlowCanvas({ flow, selectedStepId, onSelectStep, onFlowChange, highlightedStepIds, groups }: FlowCanvasProps) {
   const initialNodes = useMemo(() => layoutNodes(flow, highlightedStepIds), [flow, highlightedStepIds]);
   const initialEdges = useMemo(() => buildEdges(flow), [flow]);
   const [nodes, setNodes] = useState<Node[]>(initialNodes);
   const [edges, setEdges] = useState<Edge[]>(initialEdges);
+
+  const nodesWithGroups = useMemo(() => {
+    if (!groups || groups.length === 0) return nodes;
+    const groupNodes: Node[] = [];
+    for (const group of groups) {
+      const memberNodes = nodes.filter((n) => group.stepIds.includes(n.id));
+      if (memberNodes.length === 0) continue;
+      const minX = Math.min(...memberNodes.map((n) => n.position.x)) - 20;
+      const minY = Math.min(...memberNodes.map((n) => n.position.y)) - 30;
+      const maxX = Math.max(...memberNodes.map((n) => n.position.x)) + 260;
+      const maxY = Math.max(...memberNodes.map((n) => n.position.y)) + 120;
+      groupNodes.push({
+        id: `group-${group.id}`,
+        type: 'default',
+        position: { x: minX, y: minY },
+        data: { label: group.label },
+        style: {
+          width: maxX - minX,
+          height: maxY - minY,
+          background: group.bgColor,
+          border: `1px dashed ${group.color}`,
+          borderRadius: '8px',
+          fontSize: '9px',
+          fontWeight: 600,
+          color: group.color,
+          textTransform: 'uppercase' as const,
+          letterSpacing: '0.04em',
+          zIndex: -1,
+          pointerEvents: 'none' as const,
+        },
+        selectable: false,
+        draggable: false,
+      });
+    }
+    return [...groupNodes, ...nodes];
+  }, [groups, nodes]);
 
   const onNodesChange: OnNodesChange = useCallback(
     (changes) => setNodes((nds) => applyNodeChanges(changes, nds)),
@@ -347,7 +385,7 @@ export function FlowCanvas({ flow, selectedStepId, onSelectStep, onFlowChange, h
       onDragOver={handleDragOver}
     >
       <ReactFlow
-        nodes={nodes}
+        nodes={nodesWithGroups}
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
