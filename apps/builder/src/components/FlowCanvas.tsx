@@ -6,8 +6,10 @@ import {
   Background,
   BackgroundVariant,
   Controls,
+  addEdge,
   type Node,
   type Edge,
+  type Connection,
   type OnNodesChange,
   type OnEdgesChange,
   applyNodeChanges,
@@ -139,6 +141,24 @@ function buildTransitionTags(step: FlowStep): Array<{ key: string; display: stri
   }
 
   return tags;
+}
+
+/** Default transition key for each step type when drag-connecting */
+function getDefaultTransitionKey(type: string): string {
+  switch (type) {
+    case 'scan': case 'number_input': case 'api_call': case 'camera_input':
+      return 'on_success';
+    case 'confirm':
+      return 'on_confirm';
+    case 'navigate':
+      return 'on_confirm';
+    case 'message':
+      return 'on_dismiss';
+    case 'menu_select':
+      return 'on_success'; // menu uses options, but fallback to on_success
+    default:
+      return 'on_success';
+  }
 }
 
 // ─── Layout: position nodes in columns ──────────────────────
@@ -326,6 +346,38 @@ export function FlowCanvas({ flow, selectedStepId, onSelectStep, onFlowChange, h
     onSelectStep(null);
   }, [onSelectStep]);
 
+  /** Handle edge connection: drag from source handle to target handle */
+  const handleConnect = useCallback(
+    (connection: Connection) => {
+      if (!connection.source || !connection.target) return;
+
+      // Update the flow definition: set on_success on the source step → target step
+      const updatedFlow: FlowDefinition = {
+        ...flow,
+        steps: flow.steps.map((step) => {
+          if (step.id !== connection.source) return step;
+          // Pick the right transition key based on step type
+          const key = getDefaultTransitionKey(step.type);
+          return { ...step, [key]: connection.target };
+        }),
+      };
+      onFlowChange(updatedFlow);
+
+      // Also add the visual edge immediately
+      setEdges((eds) =>
+        addEdge(
+          {
+            ...connection,
+            style: { stroke: '#94a3b8', strokeWidth: 1.5 },
+            markerEnd: { type: MarkerType.ArrowClosed, width: 12, height: 12, color: '#94a3b8' },
+          },
+          eds
+        )
+      );
+    },
+    [flow, onFlowChange]
+  );
+
   /** Handle drop from left sidebar */
   const handleDrop = useCallback(
     (event: React.DragEvent) => {
@@ -389,12 +441,14 @@ export function FlowCanvas({ flow, selectedStepId, onSelectStep, onFlowChange, h
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
+        onConnect={handleConnect}
         onNodeClick={handleNodeClick}
         onPaneClick={handlePaneClick}
         nodeTypes={nodeTypes}
         fitView
         fitViewOptions={{ padding: 0.2 }}
         proOptions={{ hideAttribution: true }}
+        connectOnClick={false}
         style={{ background: 'var(--bg-subtle)' }}
       >
         <Background variant={BackgroundVariant.Lines} gap={24} size={1} color="var(--border)" />
