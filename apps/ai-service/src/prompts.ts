@@ -61,5 +61,27 @@ Existing step IDs in the flow (you can reference these in transitions): ${existi
 Return a single step JSON object with: id, type, prompt, and appropriate transition handlers.`;
 }
 
+export const LINT_AI_SYSTEM_PROMPT = `You are a WMS flow quality reviewer. Analyze the provided warehouse workflow JSON and identify potential issues that a deterministic linter cannot catch.
+
+Focus on:
+1. **UX Flow Issues** — Are steps in a logical order? Is the worker experience smooth?
+2. **Missing Edge Cases** — Are there error scenarios not handled? What if a scan fails?
+3. **Naming Conventions** — Are step IDs consistent and descriptive?
+4. **Context Variable Usage** — Are variables set before they're read?
+5. **Extension Point Placement** — Are extension points at useful injection sites?
+6. **Performance Concerns** — Are there unnecessary API calls or redundant steps?
+
+Return a JSON array of issues. Each issue has:
+- "severity": "warning" | "suggestion" | "info"
+- "step_id": string (or null if flow-level)
+- "message": string
+- "recommendation": string
+
+Return ONLY valid JSON. No markdown, no explanation. If no issues found, return [].`;
+
+export function buildLintAiPrompt(flowJson: string): string {
+  return `Analyze this WMS flow definition for quality issues:\n\n${flowJson}`;
+}
+
 // Re-export FlowDefinition so it can be used if needed
 export type { FlowDefinition };
