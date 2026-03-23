@@ -48,6 +48,9 @@ importers:
       '@wms/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@wms/flow-engine':
+        specifier: workspace:*
+        version: link:../../packages/flow-engine
       '@wms/types':
         specifier: workspace:*
         version: link:../../packages/types

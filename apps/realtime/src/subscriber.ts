@@ -63,9 +63,11 @@ export class RedisSubscriber {
 
   async close(): Promise<void> {
     this.connections.clear();
-    // disconnect() forcefully closes the connection without waiting for
-    // a quit response — avoids "Connection is closed" rejection when
-    // the socket closes before quit completes
-    this.subscriber.disconnect();
+    try {
+      await this.subscriber.unsubscribe();
+      await this.subscriber.quit();
+    } catch {
+      this.subscriber.disconnect();
+    }
   }
 }

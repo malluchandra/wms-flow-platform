@@ -50,6 +50,8 @@ describe('Realtime SSE service', () => {
   });
 
   afterAll(async () => {
+    // Let in-flight SSE connection cleanups (unsubscribes) settle
+    await new Promise(r => setTimeout(r, 100));
     await publisher.quit();
     await server.subscriber.close();
     await new Promise<void>((resolve, reject) => {
