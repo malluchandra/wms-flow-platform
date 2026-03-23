@@ -2,24 +2,22 @@
 
 import { prisma } from './db';
 import { revalidatePath } from 'next/cache';
+import { requireAuth, requireRole } from './auth-guard';
 import type { FlowDefinition } from '@wms/types';
 
-// For MVP, use the first tenant (korber-internal)
-async function getDefaultTenantId(): Promise<string> {
-  const tenant = await prisma.tenant.findFirst();
-  return tenant!.id;
-}
-
 export async function getFlows() {
-  const tenantId = await getDefaultTenantId();
+  const user = await requireAuth();
   return prisma.flowDefinition.findMany({
-    where: { tenant_id: tenantId },
+    where: { tenant_id: user.tenant_id },
     orderBy: { created_at: 'desc' },
   });
 }
 
 export async function getFlow(id: string) {
-  return prisma.flowDefinition.findUnique({ where: { id } });
+  const user = await requireAuth();
+  return prisma.flowDefinition.findFirst({
+    where: { id, tenant_id: user.tenant_id },
+  });
 }
 
 export async function createFlow(data: {
@@ -29,10 +27,10 @@ export async function createFlow(data: {
   environment: string;
   definition: FlowDefinition;
 }) {
-  const tenantId = await getDefaultTenantId();
+  const user = await requireRole('admin', 'flow-author');
   const flow = await prisma.flowDefinition.create({
     data: {
-      tenant_id: tenantId,
+      tenant_id: user.tenant_id,
       name: data.name,
       display_name: data.display_name,
       version: data.version,
@@ -46,6 +44,12 @@ export async function createFlow(data: {
 }
 
 export async function saveFlowDefinition(id: string, definition: FlowDefinition) {
+  const user = await requireRole('admin', 'flow-author');
+  const flow = await prisma.flowDefinition.findFirst({
+    where: { id, tenant_id: user.tenant_id },
+  });
+  if (!flow) throw new Error('Flow not found');
+
   await prisma.flowDefinition.update({
     where: { id },
     data: { definition: definition as any },
@@ -55,8 +59,12 @@ export async function saveFlowDefinition(id: string, definition: FlowDefinition)
 }
 
 export async function toggleFlowActive(id: string) {
-  const flow = await prisma.flowDefinition.findUnique({ where: { id } });
+  const user = await requireRole('admin', 'flow-author');
+  const flow = await prisma.flowDefinition.findFirst({
+    where: { id, tenant_id: user.tenant_id },
+  });
   if (!flow) return;
+
   await prisma.flowDefinition.update({
     where: { id },
     data: { is_active: !flow.is_active },
@@ -65,6 +73,12 @@ export async function toggleFlowActive(id: string) {
 }
 
 export async function deleteFlow(id: string) {
+  const user = await requireRole('admin');
+  const flow = await prisma.flowDefinition.findFirst({
+    where: { id, tenant_id: user.tenant_id },
+  });
+  if (!flow) throw new Error('Flow not found');
+
   await prisma.flowDefinition.delete({ where: { id } });
   revalidatePath('/');
 }
