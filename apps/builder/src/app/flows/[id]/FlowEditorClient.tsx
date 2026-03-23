@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { useUndoHistory } from '@/lib/use-undo-history';
 import { ToastProvider, useToast } from '@/components/Toast';
 import { TopBar, type ViewTab } from '@/components/TopBar';
 import { LeftSidebar } from '@/components/LeftSidebar';
@@ -35,7 +36,14 @@ function FlowEditorInner({
 }: FlowEditorClientProps) {
   const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<ViewTab>('logic');
-  const [currentFlow, setCurrentFlow] = useState<FlowDefinition>(() => structuredClone(initialFlow));
+  const {
+    state: currentFlow,
+    setState: setCurrentFlow,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+  } = useUndoHistory<FlowDefinition>(structuredClone(initialFlow));
   const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const rightPanelRef = useRef<RightPanelHandle>(null);
@@ -154,6 +162,42 @@ function FlowEditorInner({
   const linterPass = currentFlow.steps.some((s) => s.id === 'exception-handler') &&
     currentFlow.steps.some((s) => JSON.stringify(s).includes('__exit__'));
 
+  // ─── Keyboard shortcuts ───────────────────────────────────
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      const mod = e.metaKey || e.ctrlKey;
+
+      if (mod && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+        return;
+      }
+      if (mod && e.key === 'z' && e.shiftKey) {
+        e.preventDefault();
+        redo();
+        return;
+      }
+      if (mod && e.key === 's') {
+        e.preventDefault();
+        handleSave();
+        return;
+      }
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedStepId) {
+        const tag = (e.target as HTMLElement).tagName;
+        if (tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') {
+          e.preventDefault();
+          handleDeleteStep();
+        }
+        return;
+      }
+      if (e.key === 'Escape') {
+        setSelectedStepId(null);
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [undo, redo, handleSave, handleDeleteStep, selectedStepId]);
+
   // ─── Render ───────────────────────────────────────────────
 
   return (
@@ -170,6 +214,10 @@ function FlowEditorInner({
         saving={saving}
         linterPass={linterPass}
         extensionMode={currentFlow.extension_mode}
+        onUndo={undo}
+        onRedo={redo}
+        canUndo={canUndo}
+        canRedo={canRedo}
       />
 
       <div className="flex flex-1 overflow-hidden" style={{ paddingTop: 'var(--topbar-h)' }}>
