@@ -18,6 +18,7 @@ export class SseConnection {
       Connection: 'keep-alive',
       'X-Accel-Buffering': 'no',
     });
+    res.flushHeaders();
 
     this.heartbeatTimer = setInterval(() => {
       if (!this.closed) {
