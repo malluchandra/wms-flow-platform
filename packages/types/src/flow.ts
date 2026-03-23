@@ -1,3 +1,5 @@
+import type { ExtensionMode } from './extension.js';
+
 // ─── Step Types ───────────────────────────────────────────────
 export type StepType =
   | 'navigate'
@@ -110,6 +112,14 @@ export interface FlowStep {
   on_exception?: TransitionValue;
   on_short_pick?: TransitionValue;
   on_api_failure?: TransitionValue;
+
+  // ─── Extension metadata ──────────────────────────
+  /** Named injection site on base flow steps (e.g., "after-item-scan") */
+  extension_point?: string;
+  /** Step origin — set by resolver, used by builder UI for rendering */
+  _source?: 'base' | 'partner' | 'override';
+  /** Which extension point this partner step was injected at */
+  _injected_at?: string;
 }
 
 // ─── Context Schema ───────────────────────────────────────────
@@ -131,6 +141,10 @@ export interface FlowDefinition {
   version: string;
   display_name: string;
   extends: string | null;
+  /** How this flow relates to its base (undefined for base/root flows) */
+  extension_mode?: ExtensionMode;  // import ExtensionMode from extension.ts
+  /** SemVer of the base flow when this child was created/last synced */
+  base_version?: string;
   context_schema: ContextSchema;
   entry_step: string;
   steps: FlowStep[];
