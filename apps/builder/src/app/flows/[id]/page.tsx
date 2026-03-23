@@ -1,5 +1,6 @@
 import { getFlow, saveFlowDefinition } from '@/lib/actions';
 import { FlowCanvas } from '@/components/FlowCanvas';
+import { AISidebar } from '@/components/AISidebar';
 import { notFound } from 'next/navigation';
 import type { FlowDefinition } from '@wms/types';
 
@@ -33,6 +34,7 @@ export default async function FlowEditorPage({ params }: { params: Promise<{ id:
       </div>
       <div className="flex-1">
         <FlowCanvas flow={definition} flowId={flow.id} onSave={handleSave} />
+        <AISidebar flowJson={JSON.stringify(definition)} />
       </div>
     </div>
   );
