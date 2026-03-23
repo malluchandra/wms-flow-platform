@@ -12,6 +12,8 @@ import { AIPanel } from '@/components/AISidebar';
 import { TabShellDesigner } from '@/components/TabShellDesigner';
 import { TabShellEnvHub } from '@/components/TabShellEnvHub';
 import { TabShellPromotion } from '@/components/TabShellPromotion';
+import { SearchBar } from '@/components/SearchBar';
+import { searchFlow } from '@/lib/search-utils';
 import { STEP_META } from '@/lib/step-meta';
 import type { FlowDefinition, FlowStep, StepType } from '@wms/types';
 
@@ -46,6 +48,8 @@ function FlowEditorInner({
   } = useUndoHistory<FlowDefinition>(structuredClone(initialFlow));
   const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const rightPanelRef = useRef<RightPanelHandle>(null);
 
   const selectedStep = selectedStepId
@@ -162,6 +166,11 @@ function FlowEditorInner({
   const linterPass = currentFlow.steps.some((s) => s.id === 'exception-handler') &&
     currentFlow.steps.some((s) => JSON.stringify(s).includes('__exit__'));
 
+  const searchResults = searchQuery ? searchFlow(currentFlow, searchQuery) : [];
+  const highlightedStepIds = searchQuery
+    ? new Set(searchResults.map((r) => r.stepId))
+    : undefined;
+
   // ─── Keyboard shortcuts ───────────────────────────────────
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -180,6 +189,11 @@ function FlowEditorInner({
       if (mod && e.key === 's') {
         e.preventDefault();
         handleSave();
+        return;
+      }
+      if (mod && e.key === 'f') {
+        e.preventDefault();
+        setSearchOpen(true);
         return;
       }
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedStepId) {
@@ -229,12 +243,30 @@ function FlowEditorInner({
               onAddStep={handleAddStep}
               onFocusAI={handleFocusAI}
             />
-            <FlowCanvas
-              flow={currentFlow}
-              selectedStepId={selectedStepId}
-              onSelectStep={handleSelectStep}
-              onFlowChange={handleFlowChange}
-            />
+            <div className="flex-1 relative h-full flex flex-col">
+              {searchOpen && (
+                <SearchBar
+                  results={searchResults}
+                  query={searchQuery}
+                  onQueryChange={setSearchQuery}
+                  onSelectResult={(stepId) => {
+                    handleSelectStep(stepId);
+                    setSearchQuery('');
+                  }}
+                  onClose={() => {
+                    setSearchOpen(false);
+                    setSearchQuery('');
+                  }}
+                />
+              )}
+              <FlowCanvas
+                flow={currentFlow}
+                selectedStepId={selectedStepId}
+                onSelectStep={handleSelectStep}
+                onFlowChange={handleFlowChange}
+                highlightedStepIds={highlightedStepIds}
+              />
+            </div>
             <RightPanel
               ref={rightPanelRef}
               aiContent={

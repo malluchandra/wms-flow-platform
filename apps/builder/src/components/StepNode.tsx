@@ -13,6 +13,7 @@ interface StepNodeData {
   transitions?: Array<{ key: string; display: string; target?: string }>;
   stepSource?: 'base' | 'partner' | 'override';
   extensionPoint?: string;
+  dimmed?: boolean;
   [key: string]: unknown;
 }
 
@@ -59,6 +60,8 @@ export const StepNode = memo(function StepNode({ data, selected }: NodeProps) {
       style={{
         borderTopColor,
         background: bgExtra || undefined,
+        opacity: d.dimmed ? 0.25 : 1,
+        transition: 'opacity 0.15s',
         ...(selected
           ? {
               borderColor: '#2563eb',

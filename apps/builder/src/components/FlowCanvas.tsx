@@ -33,6 +33,7 @@ interface FlowCanvasProps {
   selectedStepId: string | null;
   onSelectStep: (stepId: string | null) => void;
   onFlowChange: (flow: FlowDefinition) => void;
+  highlightedStepIds?: Set<string>;
 }
 
 // ─── Transition helpers ─────────────────────────────────────
@@ -140,7 +141,7 @@ function buildTransitionTags(step: FlowStep): Array<{ key: string; display: stri
 
 // ─── Layout: position nodes in columns ──────────────────────
 
-function layoutNodes(flow: FlowDefinition): Node[] {
+function layoutNodes(flow: FlowDefinition, highlightedStepIds?: Set<string>): Node[] {
   const mainChain: string[] = [];
   const sideNodes: string[] = [];
   const stepById = new Map(flow.steps.map((s) => [s.id, s]));
@@ -184,6 +185,7 @@ function layoutNodes(flow: FlowDefinition): Node[] {
         transitions: buildTransitionTags(step),
         stepSource: step._source,
         extensionPoint: step.extension_point,
+        dimmed: highlightedStepIds ? !highlightedStepIds.has(step.id) : false,
       },
     });
   }
@@ -220,6 +222,7 @@ function layoutNodes(flow: FlowDefinition): Node[] {
         transitions: buildTransitionTags(step),
         stepSource: step._source,
         extensionPoint: step.extension_point,
+        dimmed: highlightedStepIds ? !highlightedStepIds.has(step.id) : false,
       },
     });
   }
@@ -258,8 +261,8 @@ function buildEdges(flow: FlowDefinition): Edge[] {
 
 // ─── Component ──────────────────────────────────────────────
 
-export function FlowCanvas({ flow, selectedStepId, onSelectStep, onFlowChange }: FlowCanvasProps) {
-  const initialNodes = useMemo(() => layoutNodes(flow), [flow]);
+export function FlowCanvas({ flow, selectedStepId, onSelectStep, onFlowChange, highlightedStepIds }: FlowCanvasProps) {
+  const initialNodes = useMemo(() => layoutNodes(flow, highlightedStepIds), [flow, highlightedStepIds]);
   const initialEdges = useMemo(() => buildEdges(flow), [flow]);
   const [nodes, setNodes] = useState<Node[]>(initialNodes);
   const [edges, setEdges] = useState<Edge[]>(initialEdges);
