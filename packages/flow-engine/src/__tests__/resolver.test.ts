@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createFromBase, injectAtExtensionPoint, resolveUseMode, getExtensionPoints, getSuccessTarget } from '../resolver';
+import { createFromBase, injectAtExtensionPoint, resolveUseMode, getExtensionPoints, getSuccessTarget } from '../resolver.js';
 import type { FlowDefinition, FlowStep } from '@wms/types';
 
 const BASE_FLOW: FlowDefinition = {
