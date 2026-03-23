@@ -7,30 +7,53 @@ export default async function FlowsPage() {
   const flows = await getFlows();
 
   return (
-    <div className="p-8">
+    <div style={{ padding: '32px', maxWidth: '1200px', margin: '0 auto' }}>
+      {/* Header */}
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold">Flows</h2>
-        <Link
-          href="/flows/new"
-          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-        >
+        <div className="flex items-center gap-3">
+          <svg width="24" height="24" viewBox="0 0 20 20" fill="none">
+            <rect width="20" height="20" rx="3" fill="#324155" />
+            <path d="M5 6h10M5 10h6M5 14h8" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" />
+          </svg>
+          <div>
+            <h1 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--brand)' }}>Infios Flow Designer</h1>
+            <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Manage warehouse workflow definitions</p>
+          </div>
+        </div>
+        <Link href="/flows/new" className="btn-primary" style={{ textDecoration: 'none' }}>
           + New Flow
         </Link>
       </div>
 
       {flows.length === 0 ? (
-        <p className="text-gray-500">No flows yet. Create one to get started.</p>
+        <div
+          className="stat-card flex flex-col items-center justify-center"
+          style={{ height: '200px', gap: '12px' }}
+        >
+          <span className="ms" style={{ fontSize: '36px', color: 'var(--text-xmuted)' }}>account_tree</span>
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>No flows yet. Create one to get started.</p>
+          <Link href="/flows/new" className="btn-primary" style={{ textDecoration: 'none' }}>
+            + Create First Flow
+          </Link>
+        </div>
       ) : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b">
-              <tr>
-                <th className="text-left p-4 font-medium text-gray-600">Name</th>
-                <th className="text-left p-4 font-medium text-gray-600">Version</th>
-                <th className="text-left p-4 font-medium text-gray-600">Environment</th>
-                <th className="text-left p-4 font-medium text-gray-600">Status</th>
-                <th className="text-left p-4 font-medium text-gray-600">Steps</th>
-                <th className="text-right p-4 font-medium text-gray-600">Actions</th>
+        <div style={{ border: '1px solid var(--border)', borderRadius: '6px', overflow: 'hidden' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+            <thead>
+              <tr style={{ background: 'var(--bg-subtle)' }}>
+                {['Name', 'Version', 'Environment', 'Status', 'Steps', 'Actions'].map((h) => (
+                  <th
+                    key={h}
+                    className="prop-label"
+                    style={{
+                      padding: '10px 14px',
+                      textAlign: h === 'Actions' ? 'right' : 'left',
+                      borderBottom: '1px solid var(--border)',
+                    }}
+                  >
+                    {h}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
@@ -38,43 +61,82 @@ export default async function FlowsPage() {
                 const def = flow.definition as any;
                 const stepCount = def?.steps?.length ?? 0;
                 return (
-                  <tr key={flow.id} className="border-b hover:bg-gray-50">
-                    <td className="p-4">
-                      <Link href={`/flows/${flow.id}`} className="text-blue-600 hover:underline font-medium">
+                  <tr
+                    key={flow.id}
+                    style={{ borderBottom: '1px solid var(--border)' }}
+                  >
+                    <td style={{ padding: '10px 14px' }}>
+                      <Link
+                        href={`/flows/${flow.id}`}
+                        style={{ color: 'var(--accent)', textDecoration: 'none', fontWeight: 600 }}
+                      >
                         {flow.display_name}
                       </Link>
-                      <div className="text-sm text-gray-400">{flow.name}</div>
+                      <div className="mono" style={{ fontSize: '10px', color: 'var(--text-xmuted)', marginTop: '1px' }}>
+                        {flow.name}
+                      </div>
                     </td>
-                    <td className="p-4 text-gray-600">{flow.version}</td>
-                    <td className="p-4">
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${
-                        flow.environment === 'prod' ? 'bg-red-100 text-red-700' :
-                        flow.environment === 'qa' ? 'bg-yellow-100 text-yellow-700' :
-                        'bg-green-100 text-green-700'
-                      }`}>
+                    <td className="mono" style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>
+                      {flow.version}
+                    </td>
+                    <td style={{ padding: '10px 14px' }}>
+                      <span
+                        className={`env-badge ${
+                          flow.environment === 'prod'
+                            ? 'env-prod'
+                            : flow.environment === 'qa'
+                              ? 'env-qa'
+                              : 'env-dev'
+                        }`}
+                      >
                         {flow.environment.toUpperCase()}
                       </span>
                     </td>
-                    <td className="p-4">
-                      <form action={async () => {
-                        'use server';
-                        await toggleFlowActive(flow.id);
-                      }}>
-                        <button type="submit" className={`px-2 py-1 rounded text-xs font-medium ${
-                          flow.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
-                        }`}>
+                    <td style={{ padding: '10px 14px' }}>
+                      <form
+                        action={async () => {
+                          'use server';
+                          await toggleFlowActive(flow.id);
+                        }}
+                      >
+                        <button
+                          type="submit"
+                          className={`env-badge ${flow.is_active ? 'env-dev' : ''}`}
+                          style={
+                            !flow.is_active
+                              ? {
+                                  background: 'var(--bg-muted)',
+                                  color: 'var(--text-muted)',
+                                  border: '1px solid var(--border)',
+                                }
+                              : {}
+                          }
+                        >
                           {flow.is_active ? 'Active' : 'Inactive'}
                         </button>
                       </form>
                     </td>
-                    <td className="p-4 text-gray-600">{stepCount}</td>
-                    <td className="p-4 text-right">
-                      <Link href={`/flows/${flow.id}`} className="text-blue-600 hover:underline mr-3">Edit</Link>
-                      <form action={async () => {
-                        'use server';
-                        await deleteFlow(flow.id);
-                      }} className="inline">
-                        <button type="submit" className="text-red-500 hover:underline">Delete</button>
+                    <td className="mono" style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>
+                      {stepCount}
+                    </td>
+                    <td style={{ padding: '10px 14px', textAlign: 'right' }}>
+                      <Link
+                        href={`/flows/${flow.id}`}
+                        className="btn-ghost btn-sm"
+                        style={{ textDecoration: 'none', marginRight: '8px' }}
+                      >
+                        Edit
+                      </Link>
+                      <form
+                        action={async () => {
+                          'use server';
+                          await deleteFlow(flow.id);
+                        }}
+                        style={{ display: 'inline' }}
+                      >
+                        <button type="submit" className="btn-danger btn-sm">
+                          Delete
+                        </button>
                       </form>
                     </td>
                   </tr>
