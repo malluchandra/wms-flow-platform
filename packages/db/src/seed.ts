@@ -305,6 +305,31 @@ async function main() {
   }
   console.log(`  Workers: ${workers.length} created`);
 
+  // 2b. Create default builder admin user
+  // Password: "admin123" — change in production
+  // Generate fresh hash: node -e "require('bcrypt').hash('admin123',10).then(console.log)"
+  const bcryptHash = '$2b$10$vtXj.mrLUq/Z/uhD20zwzOhJSM8NAvbstIwzKCSL4QrfyjEhPXasK';
+  await prisma.$executeRaw`
+    INSERT INTO auth.builder_users (id, tenant_id, email, name, password_hash, role, is_super, is_active, created_at, updated_at)
+    VALUES (
+      gen_random_uuid(),
+      ${tenant.id}::uuid,
+      'admin@korber.com',
+      'Korber Admin',
+      ${bcryptHash},
+      'admin',
+      true,
+      true,
+      NOW(),
+      NOW()
+    )
+    ON CONFLICT (tenant_id, email) DO UPDATE SET
+      password_hash = EXCLUDED.password_hash,
+      role = EXCLUDED.role,
+      is_super = EXCLUDED.is_super
+  `;
+  console.log('  Builder User: admin@korber.com (password: admin123)');
+
   // 3. Create items
   const items = [];
   for (const itemDef of itemDefs) {
