@@ -304,7 +304,13 @@ function FlowEditorInner({
         )}
 
         {/* UI Designer */}
-        {activeTab === 'designer' && <TabShellDesigner />}
+        {activeTab === 'designer' && (
+          <TabShellDesigner
+            flow={currentFlow}
+            selectedStepId={selectedStepId}
+            onSelectStep={handleSelectStep}
+          />
+        )}
 
         {/* Environment Hub */}
         {activeTab === 'envhub' && <TabShellEnvHub />}
