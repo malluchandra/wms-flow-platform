@@ -52,9 +52,9 @@ describe('Realtime SSE service', () => {
   afterAll(async () => {
     await publisher.quit();
     await server.subscriber.close();
-    server.close();
-    // Small delay for cleanup
-    await new Promise(r => setTimeout(r, 100));
+    await new Promise<void>((resolve, reject) => {
+      server.close((err) => (err ? reject(err) : resolve()));
+    });
   });
 
   it('health endpoint returns 200', async () => {

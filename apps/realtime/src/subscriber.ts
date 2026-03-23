@@ -11,6 +11,12 @@ export class RedisSubscriber {
     this.subscriber.on('message', (channel: string, message: string) => {
       this.routeMessage(channel, message);
     });
+
+    // Suppress connection-closed errors during shutdown
+    this.subscriber.on('error', (err: Error) => {
+      if (err.message === 'Connection is closed.') return;
+      console.error('Redis subscriber error:', err);
+    });
   }
 
   async connect(): Promise<void> {
@@ -56,6 +62,10 @@ export class RedisSubscriber {
   }
 
   async close(): Promise<void> {
-    await this.subscriber.quit();
+    this.connections.clear();
+    // disconnect() forcefully closes the connection without waiting for
+    // a quit response — avoids "Connection is closed" rejection when
+    // the socket closes before quit completes
+    this.subscriber.disconnect();
   }
 }
