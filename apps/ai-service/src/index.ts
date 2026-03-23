@@ -1,17 +1,14 @@
-import Fastify from 'fastify';
+import dotenv from 'dotenv';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const app = Fastify({ logger: true });
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
 
-app.get('/health', async () => ({
-  status: 'ok',
-  service: 'ai-service',
-  timestamp: new Date().toISOString(),
-}));
+import { buildApp } from './app.js';
 
-const port = Number(process.env.PORT ?? 4002);
+const port = Number(process.env.AI_SERVICE_PORT ?? process.env.PORT ?? 4002);
+const app = await buildApp();
 app.listen({ port, host: '0.0.0.0' }, (err) => {
-  if (err) {
-    app.log.error(err);
-    process.exit(1);
-  }
+  if (err) { app.log.error(err); process.exit(1); }
 });
