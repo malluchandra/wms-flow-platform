@@ -4,19 +4,19 @@ import { useCallback, useMemo, useState } from 'react';
 import {
   ReactFlow,
   Background,
+  BackgroundVariant,
   Controls,
-  MiniMap,
   type Node,
   type Edge,
   type OnNodesChange,
   type OnEdgesChange,
   applyNodeChanges,
   applyEdgeChanges,
-  Panel,
+  MarkerType,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { StepNode } from './StepNode';
-import { StepDetailPanel } from './StepDetailPanel';
+import { STEP_META } from '@/lib/step-meta';
 import type {
   FlowDefinition,
   FlowStep,
@@ -30,11 +30,13 @@ const nodeTypes = { step: StepNode };
 
 interface FlowCanvasProps {
   flow: FlowDefinition;
-  flowId: string;
-  onSave: (definition: FlowDefinition) => Promise<void>;
+  selectedStepId: string | null;
+  onSelectStep: (stepId: string | null) => void;
+  onFlowChange: (flow: FlowDefinition) => void;
 }
 
-/** Extract all step ID references from a transition value */
+// ─── Transition helpers ─────────────────────────────────────
+
 function getTransitionTargets(value: TransitionValue | undefined): string[] {
   if (!value) return [];
   if (typeof value === 'string') return [value];
@@ -47,37 +49,33 @@ function getTransitionTargets(value: TransitionValue | undefined): string[] {
   return targets;
 }
 
-/** Build edges from a step's transitions */
-function buildEdgesForStep(step: FlowStep): Array<{ target: string; label: string }> {
-  const edges: Array<{ target: string; label: string }> = [];
+type TransitionInfo = { target: string; key: string; label: string };
+
+function buildEdgesForStep(step: FlowStep): TransitionInfo[] {
+  const edges: TransitionInfo[] = [];
   const transitions: Array<[string, TransitionValue | undefined]> = [
-    ['success', step.on_success],
-    ['failure', step.on_failure],
-    ['confirm', step.on_confirm],
-    ['back', step.on_back],
-    ['dismiss', step.on_dismiss],
-    ['skip', step.on_skip],
-    ['exception', step.on_exception],
-    ['short_pick', step.on_short_pick],
+    ['on_success', step.on_success],
+    ['on_failure', step.on_failure],
+    ['on_confirm', step.on_confirm],
+    ['on_back', step.on_back],
+    ['on_dismiss', step.on_dismiss],
+    ['on_skip', step.on_skip],
+    ['on_exception', step.on_exception],
+    ['on_short_pick', step.on_short_pick],
   ];
 
-  for (const [label, value] of transitions) {
+  for (const [key, value] of transitions) {
     for (const target of getTransitionTargets(value)) {
       if (target !== '__exit__' && target !== '__abandon__' && !target.startsWith('{{')) {
-        edges.push({ target, label });
+        edges.push({ target, key, label: key.replace('on_', '') });
       }
     }
   }
 
-  // Menu options
   if (step.options) {
     for (const opt of step.options) {
-      if (
-        opt.next_step !== '__exit__' &&
-        opt.next_step !== '__abandon__' &&
-        !opt.next_step.startsWith('{{')
-      ) {
-        edges.push({ target: opt.next_step, label: opt.label });
+      if (opt.next_step !== '__exit__' && opt.next_step !== '__abandon__' && !opt.next_step.startsWith('{{')) {
+        edges.push({ target: opt.next_step, key: 'option', label: opt.label });
       }
     }
   }
@@ -85,60 +83,182 @@ function buildEdgesForStep(step: FlowStep): Array<{ target: string; label: strin
   return edges;
 }
 
-function flowToNodesAndEdges(flow: FlowDefinition): { nodes: Node[]; edges: Edge[] } {
-  const nodes: Node[] = flow.steps.map((step, i) => ({
-    id: step.id,
-    type: 'step',
-    position: { x: 300 * (i % 4), y: 200 * Math.floor(i / 4) },
-    data: { label: step.prompt, stepType: step.type, stepId: step.id },
-  }));
+/** Get edge style based on transition key */
+function getEdgeStyle(key: string): { stroke: string; strokeDasharray?: string } {
+  if (key.includes('failure') || key.includes('exception')) {
+    return { stroke: '#fca5a5', strokeDasharray: '5 3' };
+  }
+  if (key.includes('short_pick') || key.includes('warn')) {
+    return { stroke: '#fcd34d', strokeDasharray: '5 3' };
+  }
+  if (key.includes('back') || key.includes('dismiss')) {
+    return { stroke: '#cbd5e1', strokeDasharray: '4 3' };
+  }
+  return { stroke: '#94a3b8' };
+}
 
+/** Build transition display tags for StepNode data */
+function buildTransitionTags(step: FlowStep): Array<{ key: string; display: string }> {
+  const tags: Array<{ key: string; display: string }> = [];
+  const transitions: Array<[string, TransitionValue | undefined]> = [
+    ['on_success', step.on_success],
+    ['on_failure', step.on_failure],
+    ['on_confirm', step.on_confirm],
+    ['on_back', step.on_back],
+    ['on_dismiss', step.on_dismiss],
+    ['on_skip', step.on_skip],
+    ['on_exception', step.on_exception],
+    ['on_short_pick', step.on_short_pick],
+  ];
+
+  for (const [key, value] of transitions) {
+    if (value) {
+      const shortKey = key.replace('on_', '');
+      if (typeof value === 'string') {
+        if (value === '__exit__' || value === '__abandon__') {
+          tags.push({ key, display: `\u2192 ${value}` });
+        } else {
+          tags.push({ key, display: `${shortKey} \u2192` });
+        }
+      } else if (Array.isArray(value)) {
+        for (const cond of value as ConditionalTransition[]) {
+          const condLabel = cond.condition.replace(/\{\{response\./, '').replace(/\}\}.*/, '');
+          tags.push({ key, display: `${condLabel} \u2192 ${cond.next_step}` });
+        }
+      } else {
+        tags.push({ key, display: `${shortKey} \u2192` });
+      }
+    }
+  }
+
+  if (step.options) {
+    tags.push({ key: 'options', display: `${step.options.length} options` });
+  }
+
+  return tags;
+}
+
+// ─── Layout: position nodes in columns ──────────────────────
+
+function layoutNodes(flow: FlowDefinition): Node[] {
+  const mainChain: string[] = [];
+  const sideNodes: string[] = [];
+  const stepById = new Map(flow.steps.map((s) => [s.id, s]));
+
+  // Walk the main chain from entry_step following on_success/on_confirm
+  let current = flow.entry_step;
+  const visited = new Set<string>();
+  while (current && stepById.has(current) && !visited.has(current)) {
+    visited.add(current);
+    mainChain.push(current);
+    const step = stepById.get(current)!;
+    const nextTarget =
+      getTransitionTargets(step.on_success)[0] ??
+      getTransitionTargets(step.on_confirm)[0] ??
+      getTransitionTargets(step.on_dismiss)[0];
+    current = nextTarget && nextTarget !== '__exit__' && nextTarget !== '__abandon__' ? nextTarget : '';
+  }
+
+  // Everything else is a side node
+  for (const step of flow.steps) {
+    if (!visited.has(step.id)) {
+      sideNodes.push(step.id);
+    }
+  }
+
+  const nodes: Node[] = [];
+
+  // Main column: x=70, spacing y=140
+  for (let i = 0; i < mainChain.length; i++) {
+    const step = stepById.get(mainChain[i])!;
+    nodes.push({
+      id: step.id,
+      type: 'step',
+      position: { x: 70, y: 50 + i * 140 },
+      data: {
+        label: step.prompt,
+        stepType: step.type,
+        stepId: step.id,
+        isEntry: step.id === flow.entry_step,
+        severity: step.severity,
+        transitions: buildTransitionTags(step),
+      },
+    });
+  }
+
+  // Side column: x=370, spaced according to which main node references them
+  for (let i = 0; i < sideNodes.length; i++) {
+    const step = stepById.get(sideNodes[i])!;
+    // Try to align vertically with the main node that references this side node
+    let yPos = 50 + i * 140;
+    for (let j = 0; j < mainChain.length; j++) {
+      const mainStep = stepById.get(mainChain[j])!;
+      const refs = buildEdgesForStep(mainStep);
+      if (refs.some((r) => r.target === step.id)) {
+        yPos = 50 + j * 140;
+        break;
+      }
+    }
+
+    // Determine x column based on how many side nodes are at this y position
+    const xBase = 370;
+    const existingAtY = nodes.filter((n) => Math.abs(n.position.y - yPos) < 20 && n.position.x >= xBase);
+    const xOffset = existingAtY.length * 290;
+
+    nodes.push({
+      id: step.id,
+      type: 'step',
+      position: { x: xBase + xOffset, y: yPos },
+      data: {
+        label: step.prompt,
+        stepType: step.type,
+        stepId: step.id,
+        isEntry: false,
+        severity: step.severity,
+        transitions: buildTransitionTags(step),
+      },
+    });
+  }
+
+  return nodes;
+}
+
+function buildEdges(flow: FlowDefinition): Edge[] {
   const edges: Edge[] = [];
   const stepIds = new Set(flow.steps.map((s) => s.id));
 
   for (const step of flow.steps) {
-    for (const { target, label } of buildEdgesForStep(step)) {
+    for (const { target, key, label } of buildEdgesForStep(step)) {
       if (stepIds.has(target)) {
+        const style = getEdgeStyle(key);
         edges.push({
-          id: `${step.id}-${target}-${label}`,
+          id: `${step.id}-${target}-${key}-${label}`,
           source: step.id,
           target,
           label,
-          style: { stroke: '#94a3b8' },
-          labelStyle: { fontSize: 10, fill: '#64748b' },
+          style: { stroke: style.stroke, strokeDasharray: style.strokeDasharray, strokeWidth: 1.5 },
+          labelStyle: { fontSize: 9, fill: '#64748b', fontWeight: 500 },
+          markerEnd: {
+            type: MarkerType.ArrowClosed,
+            width: 12,
+            height: 12,
+            color: style.stroke,
+          },
         });
       }
     }
   }
 
-  return { nodes, edges };
+  return edges;
 }
 
-export function FlowCanvas({ flow, flowId, onSave }: FlowCanvasProps) {
-  // Mutable copy of the full flow definition
-  const [currentFlow, setCurrentFlow] = useState<FlowDefinition>(() => structuredClone(flow));
-  const { nodes: initialNodes, edges: initialEdges } = useMemo(
-    () => flowToNodesAndEdges(currentFlow),
-    // Only compute on mount — we manage nodes/edges manually after that
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
-  );
+// ─── Component ──────────────────────────────────────────────
+
+export function FlowCanvas({ flow, selectedStepId, onSelectStep, onFlowChange }: FlowCanvasProps) {
+  const initialNodes = useMemo(() => layoutNodes(flow), [flow]);
+  const initialEdges = useMemo(() => buildEdges(flow), [flow]);
   const [nodes, setNodes] = useState<Node[]>(initialNodes);
   const [edges, setEdges] = useState<Edge[]>(initialEdges);
-  const [saving, setSaving] = useState(false);
-  const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
-
-  const selectedStep = useMemo(
-    () => (selectedStepId ? currentFlow.steps.find((s) => s.id === selectedStepId) ?? null : null),
-    [selectedStepId, currentFlow]
-  );
-
-  /** Rebuild nodes and edges from the current flow state */
-  const rebuildGraph = useCallback((flowDef: FlowDefinition) => {
-    const { nodes: newNodes, edges: newEdges } = flowToNodesAndEdges(flowDef);
-    setNodes(newNodes);
-    setEdges(newEdges);
-  }, []);
 
   const onNodesChange: OnNodesChange = useCallback(
     (changes) => setNodes((nds) => applyNodeChanges(changes, nds)),
@@ -150,147 +270,105 @@ export function FlowCanvas({ flow, flowId, onSave }: FlowCanvasProps) {
     []
   );
 
-  const handleNodeClick = useCallback((_event: React.MouseEvent, node: Node) => {
-    setSelectedStepId(node.id);
-  }, []);
-
-  const handlePaneClick = useCallback(() => {
-    setSelectedStepId(null);
-  }, []);
-
-  const handleSave = useCallback(async () => {
-    setSaving(true);
-    try {
-      await onSave(currentFlow);
-    } finally {
-      setSaving(false);
-    }
-  }, [currentFlow, onSave]);
-
-  /** Update a step in the flow definition */
-  const handleUpdateStep = useCallback(
-    (updated: FlowStep) => {
-      setCurrentFlow((prev) => {
-        const oldStep = prev.steps.find((s) => s.id === selectedStepId);
-        const idChanged = oldStep && oldStep.id !== updated.id;
-        const next: FlowDefinition = {
-          ...prev,
-          steps: prev.steps.map((s) => (s.id === selectedStepId ? updated : s)),
-        };
-        // If the step ID changed, update the entry_step reference and all transition references
-        if (idChanged && selectedStepId) {
-          if (next.entry_step === selectedStepId) {
-            next.entry_step = updated.id;
-          }
-          next.steps = next.steps.map((s) => rewriteTransitionRefs(s, selectedStepId, updated.id));
-        }
-        rebuildGraph(next);
-        return next;
-      });
-      setSelectedStepId(updated.id);
+  const handleNodeClick = useCallback(
+    (_event: React.MouseEvent, node: Node) => {
+      onSelectStep(node.id);
     },
-    [selectedStepId, rebuildGraph]
+    [onSelectStep]
   );
 
-  /** Delete a step from the flow */
-  const handleDeleteStep = useCallback(() => {
-    if (!selectedStepId) return;
-    setCurrentFlow((prev) => {
-      const next: FlowDefinition = {
-        ...prev,
-        steps: prev.steps.filter((s) => s.id !== selectedStepId),
-      };
-      rebuildGraph(next);
-      return next;
-    });
-    setSelectedStepId(null);
-  }, [selectedStepId, rebuildGraph]);
+  const handlePaneClick = useCallback(() => {
+    onSelectStep(null);
+  }, [onSelectStep]);
 
-  /** Add a new blank step */
-  const handleAddStep = useCallback(() => {
-    const newId = `new_step_${Date.now()}`;
-    const newStep: FlowStep = {
-      id: newId,
-      type: 'message' as StepType,
-      prompt: 'New Step',
-    };
-    setCurrentFlow((prev) => {
-      const next: FlowDefinition = {
-        ...prev,
-        steps: [...prev.steps, newStep],
-      };
-      rebuildGraph(next);
-      return next;
-    });
-    setSelectedStepId(newId);
-  }, [rebuildGraph]);
+  /** Handle drop from left sidebar */
+  const handleDrop = useCallback(
+    (event: React.DragEvent) => {
+      event.preventDefault();
+      const stepType = event.dataTransfer.getData('application/step-type');
+      if (!stepType) return;
 
-  const handleClosePanel = useCallback(() => {
-    setSelectedStepId(null);
+      const newId = `new-${stepType}-${Date.now()}`;
+      const meta = STEP_META[stepType];
+      const newStep: FlowStep = {
+        id: newId,
+        type: stepType as StepType,
+        prompt: meta?.label ?? 'New Step',
+      };
+
+      const updatedFlow: FlowDefinition = {
+        ...flow,
+        steps: [...flow.steps, newStep],
+      };
+      onFlowChange(updatedFlow);
+
+      // Add node at drop position
+      const reactFlowBounds = (event.target as HTMLElement).closest('.react-flow')?.getBoundingClientRect();
+      const x = reactFlowBounds ? event.clientX - reactFlowBounds.left : 400;
+      const y = reactFlowBounds ? event.clientY - reactFlowBounds.top : 200;
+
+      setNodes((prev) => [
+        ...prev,
+        {
+          id: newId,
+          type: 'step',
+          position: { x, y },
+          data: {
+            label: meta?.label ?? 'New Step',
+            stepType,
+            stepId: newId,
+            isEntry: false,
+            transitions: [],
+          },
+        },
+      ]);
+
+      onSelectStep(newId);
+    },
+    [flow, onFlowChange, onSelectStep]
+  );
+
+  const handleDragOver = useCallback((event: React.DragEvent) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'copy';
   }, []);
 
   return (
-    <div className="h-full w-full flex">
-      <div className={`flex-1 ${selectedStep ? '' : 'w-full'}`}>
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onNodeClick={handleNodeClick}
-          onPaneClick={handlePaneClick}
-          nodeTypes={nodeTypes}
-          fitView
-          className="bg-gray-50"
-        >
-          <Background />
-          <Controls />
-          <MiniMap />
-          <Panel position="top-right">
-            <div className="flex gap-2">
-              <button
-                onClick={handleAddStep}
-                className="bg-green-600 text-white px-4 py-2 rounded shadow hover:bg-green-700"
-              >
-                + Add Step
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="bg-blue-600 text-white px-4 py-2 rounded shadow hover:bg-blue-700 disabled:opacity-50"
-              >
-                {saving ? 'Saving...' : 'Save Flow'}
-              </button>
-            </div>
-          </Panel>
-        </ReactFlow>
-      </div>
-      {selectedStep && (
-        <StepDetailPanel
-          key={selectedStep.id}
-          step={selectedStep}
-          onUpdate={handleUpdateStep}
-          onDelete={handleDeleteStep}
-          onClose={handleClosePanel}
+    <div
+      className="flex-1 h-full"
+      onDrop={handleDrop}
+      onDragOver={handleDragOver}
+    >
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onNodeClick={handleNodeClick}
+        onPaneClick={handlePaneClick}
+        nodeTypes={nodeTypes}
+        fitView
+        fitViewOptions={{ padding: 0.2 }}
+        proOptions={{ hideAttribution: true }}
+        style={{ background: 'var(--bg-subtle)' }}
+      >
+        <Background variant={BackgroundVariant.Lines} gap={24} size={1} color="var(--border)" />
+        <Controls
+          showInteractive={false}
+          style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '4px' }}
         />
-      )}
+      </ReactFlow>
     </div>
   );
 }
 
-/** Rewrite all transition references from oldId to newId within a step */
-function rewriteTransitionRefs(step: FlowStep, oldId: string, newId: string): FlowStep {
+// ─── Transition rewrite helper (keep from original) ─────────
+
+export function rewriteTransitionRefs(step: FlowStep, oldId: string, newId: string): FlowStep {
   const clone = { ...step };
   const transitionKeys = [
-    'on_success',
-    'on_failure',
-    'on_confirm',
-    'on_back',
-    'on_dismiss',
-    'on_skip',
-    'on_exception',
-    'on_short_pick',
-    'on_api_failure',
+    'on_success', 'on_failure', 'on_confirm', 'on_back',
+    'on_dismiss', 'on_skip', 'on_exception', 'on_short_pick', 'on_api_failure',
   ] as const;
 
   for (const key of transitionKeys) {

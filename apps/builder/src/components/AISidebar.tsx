@@ -1,25 +1,40 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 
 const AI_SERVICE_URL = process.env.NEXT_PUBLIC_AI_API_URL ?? 'http://localhost:4002';
 
-interface AISidebarProps {
+interface AIPanelProps {
+  flowName?: string;
   flowJson?: string;
   onFlowGenerated?: (flow: unknown) => void;
 }
 
-export function AISidebar({ flowJson, onFlowGenerated }: AISidebarProps) {
-  const [open, setOpen] = useState(false);
-  const [prompt, setPrompt] = useState('');
-  const [result, setResult] = useState<string | null>(null);
+interface ChatMessage {
+  role: 'system' | 'user';
+  content: string;
+  generatedJson?: string;
+}
+
+export function AIPanel({ flowName, flowJson, onFlowGenerated }: AIPanelProps) {
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    {
+      role: 'system',
+      content: flowName
+        ? `I'm ready to help with <strong>${flowName}</strong>. Ask me to generate steps, lint the flow, or describe changes in plain English.`
+        : 'Select or create a flow to get started. I can generate complete flows from descriptions or individual steps.',
+    },
+  ]);
+  const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+  }, [messages]);
 
   async function callAI(endpoint: string, body: Record<string, unknown>) {
     setLoading(true);
-    setError(null);
-    setResult(null);
     try {
       const res = await fetch(`${AI_SERVICE_URL}${endpoint}`, {
         method: 'POST',
@@ -28,113 +43,165 @@ export function AISidebar({ flowJson, onFlowGenerated }: AISidebarProps) {
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error ?? `Error ${res.status}`);
+        setMessages((prev) => [...prev, { role: 'system', content: `Error: ${data.error ?? res.status}` }]);
       } else {
-        setResult(JSON.stringify(data, null, 2));
+        const json = JSON.stringify(data, null, 2);
+        setMessages((prev) => [...prev, { role: 'system', content: 'Generated:', generatedJson: json }]);
         if (onFlowGenerated && data.flow) {
           onFlowGenerated(data.flow);
         }
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Network error');
+      setMessages((prev) => [
+        ...prev,
+        { role: 'system', content: `Network error: ${err instanceof Error ? err.message : 'unknown'}` },
+      ]);
     } finally {
       setLoading(false);
     }
   }
 
-  async function handleGenerateFlow() {
-    await callAI('/generate/flow', { description: prompt });
+  function handleSend() {
+    if (!input.trim() || loading) return;
+    const msg = input.trim();
+    setInput('');
+    setMessages((prev) => [...prev, { role: 'user', content: msg }]);
+
+    // Default to generate step
+    callAI('/generate/step', { description: msg, existing_step_ids: [] });
   }
 
-  async function handleGenerateStep() {
-    await callAI('/generate/step', { description: prompt, existing_step_ids: [] });
+  function handleGenerateFlow() {
+    if (!input.trim()) return;
+    const msg = input.trim();
+    setInput('');
+    setMessages((prev) => [...prev, { role: 'user', content: `Generate flow: ${msg}` }]);
+    callAI('/generate/flow', { description: msg });
   }
 
-  async function handleLint() {
-    if (!flowJson) {
-      setError('No flow definition to lint');
-      return;
-    }
+  function handleLint() {
+    if (!flowJson) return;
+    setMessages((prev) => [...prev, { role: 'user', content: 'Lint current flow' }]);
     try {
       const flow = JSON.parse(flowJson);
-      await callAI('/lint/flow', { flow });
+      callAI('/lint/flow', { flow });
     } catch {
-      setError('Invalid flow JSON');
+      setMessages((prev) => [...prev, { role: 'system', content: 'Invalid flow JSON' }]);
     }
-  }
-
-  if (!open) {
-    return (
-      <button
-        onClick={() => setOpen(true)}
-        className="fixed right-4 top-20 bg-purple-600 text-white px-3 py-2 rounded-lg shadow-lg hover:bg-purple-700 z-50"
-      >
-        AI Assistant
-      </button>
-    );
   }
 
   return (
-    <div className="fixed right-0 top-0 h-full w-96 bg-white shadow-xl border-l z-50 flex flex-col">
-      <div className="flex items-center justify-between p-4 border-b bg-purple-50">
-        <h3 className="font-bold text-purple-800">AI Assistant</h3>
-        <button onClick={() => setOpen(false)} className="text-gray-500 hover:text-gray-700">
-          Close
-        </button>
-      </div>
-
-      <div className="flex-1 overflow-auto p-4 space-y-4">
-        <div>
-          <label className="block text-sm font-medium mb-1">Describe what you want</label>
-          <textarea
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            placeholder="e.g., Create a receiving flow with dock scan, PO lookup, item scan, quantity entry, and putaway location"
-            className="w-full border rounded p-2 h-28 text-sm resize-none"
-          />
+    <>
+      {/* Messages area */}
+      <div ref={scrollRef} className="flex-1 overflow-y-auto p-3.5 flex flex-col gap-2.5">
+        {/* Header */}
+        <div className="flex items-center gap-1.5 pb-1.5" style={{ borderBottom: '1px solid var(--border)' }}>
+          <span className="ms-fill" style={{ fontSize: '16px', color: 'var(--accent)' }}>bolt</span>
+          <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--brand)' }}>AI Flow Assistant</span>
+          <span
+            className="ml-auto"
+            style={{
+              fontSize: '9px',
+              background: 'var(--success-lt)',
+              color: 'var(--success)',
+              padding: '2px 6px',
+              borderRadius: '10px',
+              fontWeight: 600,
+            }}
+          >
+            Active
+          </span>
         </div>
 
-        <div className="flex gap-2">
+        {/* Chat messages */}
+        {messages.map((msg, i) => (
+          <div key={i} className={`ai-msg ${msg.role}`}>
+            <span dangerouslySetInnerHTML={{ __html: msg.content }} />
+            {msg.generatedJson && (
+              <pre
+                className="mono"
+                style={{
+                  fontSize: '9px',
+                  background: 'var(--bg-muted)',
+                  padding: '10px',
+                  borderRadius: '3px',
+                  marginTop: '8px',
+                  whiteSpace: 'pre-wrap',
+                  lineHeight: 1.7,
+                  maxHeight: '200px',
+                  overflowY: 'auto',
+                }}
+              >
+                {msg.generatedJson}
+              </pre>
+            )}
+          </div>
+        ))}
+
+        {loading && (
+          <div className="ai-msg system">
+            Generating... <span style={{ animation: 'pulse-green 1s infinite' }}>...</span>
+          </div>
+        )}
+
+        {/* Quick action buttons */}
+        <div className="flex gap-1.5 mt-1">
           <button
+            className="btn-ghost btn-sm"
+            style={{ fontSize: '9px', flex: 1 }}
             onClick={handleGenerateFlow}
-            disabled={loading || !prompt}
-            className="flex-1 bg-purple-600 text-white px-3 py-2 rounded text-sm hover:bg-purple-700 disabled:opacity-50"
+            disabled={loading || !input.trim()}
           >
-            Generate Flow
+            Gen Flow
           </button>
           <button
-            onClick={handleGenerateStep}
-            disabled={loading || !prompt}
-            className="flex-1 bg-purple-500 text-white px-3 py-2 rounded text-sm hover:bg-purple-600 disabled:opacity-50"
+            className="btn-ghost btn-sm"
+            style={{ fontSize: '9px', flex: 1 }}
+            onClick={handleSend}
+            disabled={loading || !input.trim()}
           >
             Gen Step
           </button>
           <button
+            className="btn-ghost btn-sm"
+            style={{ fontSize: '9px', flex: 1 }}
             onClick={handleLint}
             disabled={loading}
-            className="bg-gray-600 text-white px-3 py-2 rounded text-sm hover:bg-gray-700 disabled:opacity-50"
           >
             Lint
           </button>
         </div>
-
-        {loading && <div className="text-center text-gray-500 text-sm">Generating...</div>}
-
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded p-3 text-sm text-red-700">
-            {error}
-          </div>
-        )}
-
-        {result && (
-          <div>
-            <label className="block text-sm font-medium mb-1">Result</label>
-            <pre className="bg-gray-900 text-green-400 rounded p-3 text-xs overflow-auto max-h-96">
-              {result}
-            </pre>
-          </div>
-        )}
       </div>
-    </div>
+
+      {/* Input bar */}
+      <div style={{ padding: '12px', borderTop: '1px solid var(--border)', background: 'var(--bg-subtle)' }}>
+        <div className="relative">
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+            placeholder="Describe a step or ask a question..."
+            className="prop-input"
+            style={{ paddingRight: '34px', fontFamily: "'Inter', sans-serif" }}
+          />
+          <span
+            className="ms"
+            onClick={handleSend}
+            style={{
+              position: 'absolute',
+              right: '8px',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              color: 'var(--accent)',
+              cursor: 'pointer',
+              fontSize: '18px',
+            }}
+          >
+            send
+          </span>
+        </div>
+      </div>
+    </>
   );
 }
