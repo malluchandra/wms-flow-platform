@@ -1,6 +1,7 @@
 import { getFlows, toggleFlowActive, deleteFlow } from '@/lib/actions';
 import Link from 'next/link';
 import { UserNav } from '@/components/UserNav';
+import { FlowListActions } from '@/components/FlowListActions';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,6 +23,7 @@ export default async function FlowsPage() {
           </div>
         </div>
         <div className="flex items-center gap-3">
+          <FlowListActions />
           <Link href="/flows/new" className="btn-primary" style={{ textDecoration: 'none' }}>
             + New Flow
           </Link>
