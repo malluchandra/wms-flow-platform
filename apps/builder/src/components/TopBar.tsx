@@ -18,6 +18,10 @@ interface TopBarProps {
   saving?: boolean;
   linterPass?: boolean;
   extensionMode?: string;
+  onUndo?: () => void;
+  onRedo?: () => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
 }
 
 const TABS: { id: ViewTab; label: string }[] = [
@@ -45,6 +49,10 @@ export function TopBar({
   saving = false,
   linterPass = true,
   extensionMode,
+  onUndo,
+  onRedo,
+  canUndo,
+  canRedo,
 }: TopBarProps) {
   const { showToast } = useToast();
   const envIdx = ENV_CYCLE.findIndex((e) => e.label.toLowerCase() === environment.toLowerCase());
@@ -161,6 +169,46 @@ export function TopBar({
           }}>
             {extensionMode}
           </span>
+        )}
+
+        {/* Undo/Redo */}
+        {onUndo && (
+          <div style={{ display: 'flex', gap: '2px', marginRight: '8px' }}>
+            <button
+              onClick={onUndo}
+              disabled={!canUndo}
+              title="Undo (Ctrl+Z)"
+              style={{
+                padding: '4px 6px',
+                border: 'none',
+                borderRadius: '3px',
+                background: canUndo ? 'rgba(255,255,255,0.15)' : 'transparent',
+                color: canUndo ? '#fff' : 'rgba(255,255,255,0.3)',
+                cursor: canUndo ? 'pointer' : 'default',
+                fontSize: '16px',
+                lineHeight: 1,
+              }}
+            >
+              <span className="ms" style={{ fontSize: '16px' }}>undo</span>
+            </button>
+            <button
+              onClick={onRedo}
+              disabled={!canRedo}
+              title="Redo (Ctrl+Shift+Z)"
+              style={{
+                padding: '4px 6px',
+                border: 'none',
+                borderRadius: '3px',
+                background: canRedo ? 'rgba(255,255,255,0.15)' : 'transparent',
+                color: canRedo ? '#fff' : 'rgba(255,255,255,0.3)',
+                cursor: canRedo ? 'pointer' : 'default',
+                fontSize: '16px',
+                lineHeight: 1,
+              }}
+            >
+              <span className="ms" style={{ fontSize: '16px' }}>redo</span>
+            </button>
+          </div>
         )}
 
         {/* Save / Publish */}
