@@ -207,11 +207,15 @@ export function StepDetailPanel({ step, onUpdate, onDelete, onDuplicate }: StepD
           </div>
         )}
 
-        {/* Transitions */}
-        <div style={{ borderTop: '1px solid var(--border)', marginTop: '4px' }}>
+        {/* Transitions — Editable */}
+        <div style={{ borderTop: '1px solid var(--border)', marginTop: '4px', paddingTop: '8px' }}>
+          <div className="prop-row">
+            <div className="prop-label" style={{ marginBottom: '6px', fontSize: '10px', fontWeight: 700, letterSpacing: '0.06em' }}>
+              TRANSITIONS
+            </div>
+          </div>
           {transitionKeys.map((key) => {
             const val = editing[key];
-            if (!val) return null;
             const colorMap: Record<string, string> = {
               on_success: 'var(--success)',
               on_confirm: 'var(--success)',
@@ -222,15 +226,58 @@ export function StepDetailPanel({ step, onUpdate, onDelete, onDuplicate }: StepD
               on_skip: 'var(--accent)',
               on_short_pick: 'var(--warn)',
             };
+            const label = key.replace('on_', '').replace('_', ' ');
+            // For string transitions — editable input
+            // For complex transitions (objects/arrays) — show JSON
+            const isSimple = val === undefined || val === null || typeof val === 'string';
             return (
-              <div key={key} className="prop-row">
-                <div className="prop-label">{key.replace('on_', 'On ').replace('_', ' ')}</div>
-                <div className="prop-val" style={{ color: colorMap[key] ?? 'var(--text)' }}>
-                  {typeof val === 'string' ? val : JSON.stringify(val, null, 2)}
+              <div key={key} className="prop-row" style={{ paddingTop: '3px', paddingBottom: '3px' }}>
+                <div className="prop-label" style={{ color: colorMap[key] ?? 'var(--text-muted)' }}>
+                  {label}
                 </div>
+                {isSimple ? (
+                  <input
+                    className="prop-input mono"
+                    style={{ fontSize: '10px', color: colorMap[key] ?? 'var(--text)' }}
+                    value={(val as string) ?? ''}
+                    onChange={(e) => {
+                      const newVal = e.target.value.trim();
+                      handleChange(key, newVal || undefined);
+                    }}
+                    placeholder="step-id or __exit__"
+                  />
+                ) : (
+                  <div className="prop-val mono" style={{ fontSize: '9px', color: colorMap[key] ?? 'var(--text)', whiteSpace: 'pre-wrap' }}>
+                    {JSON.stringify(val, null, 1)}
+                  </div>
+                )}
               </div>
             );
           })}
+          {/* Add transition button */}
+          <div className="prop-row" style={{ paddingTop: '4px' }}>
+            <select
+              style={{
+                width: '100%', padding: '4px 6px', fontSize: '10px',
+                border: '1px solid var(--border)', borderRadius: '3px',
+                background: 'var(--bg)', color: 'var(--text-muted)',
+              }}
+              value=""
+              onChange={(e) => {
+                if (e.target.value) {
+                  handleChange(e.target.value, '');
+                  e.target.value = '';
+                }
+              }}
+            >
+              <option value="">+ Add transition...</option>
+              {transitionKeys
+                .filter((k) => !editing[k])
+                .map((k) => (
+                  <option key={k} value={k}>{k.replace('on_', '').replace('_', ' ')}</option>
+                ))}
+            </select>
+          </div>
         </div>
 
         {/* Raw JSON */}
