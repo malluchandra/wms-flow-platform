@@ -76,4 +76,73 @@ describe('Flow routes', () => {
       expect(res.statusCode).toBe(404);
     });
   });
+
+  describe('Use mode resolution', () => {
+    let baseFlowId: string;
+    let useFlowId: string;
+
+    beforeAll(async () => {
+      const base = await prisma.flowDefinition.findFirst({
+        where: { name: 'outbound-picking' },
+      });
+      baseFlowId = base!.id;
+      const tenant = await prisma.tenant.findUnique({
+        where: { slug: 'korber-internal' },
+      });
+      const useFlow = await prisma.flowDefinition.create({
+        data: {
+          tenant_id: tenant!.id,
+          name: 'use-mode-picking',
+          display_name: 'Use Mode Picking',
+          base_flow_id: baseFlowId,
+          version: '1.0.0',
+          environment: 'dev',
+          definition: {
+            id: '',
+            name: 'use-mode-picking',
+            version: '1.0.0',
+            display_name: 'Use Mode Picking',
+            extends: baseFlowId,
+            extension_mode: 'use',
+            base_version: '1.0.0',
+            context_schema: {},
+            entry_step: '',
+            steps: [],
+          },
+          is_active: true,
+        },
+      });
+      useFlowId = useFlow.id;
+    });
+
+    afterAll(async () => {
+      await prisma.flowDefinition.delete({ where: { id: useFlowId } });
+    });
+
+    it('GET /flows/:id resolves Use mode with base flow steps', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: `/flows/${useFlowId}`,
+        headers: { authorization: auth },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.payload);
+      const def = body.definition;
+      expect(def.extension_mode).toBe('use');
+      expect(def.name).toBe('use-mode-picking');
+      expect(def.steps.length).toBeGreaterThan(0);
+      expect(def.entry_step).toBe('navigate-to-location');
+    });
+
+    it('GET /flows/active/use-mode-picking resolves Use mode', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: '/flows/active/use-mode-picking',
+        headers: { authorization: auth },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.payload);
+      expect(body.definition.steps.length).toBeGreaterThan(0);
+    });
+  });
 });

@@ -25,6 +25,28 @@ export default async function flowRoutes(app: FastifyInstance) {
       return reply.code(404).send({ error: 'Flow not found' });
     }
 
+    // Resolve Use mode — load base flow definition instead
+    const def = flow.definition as any;
+    if (def.extension_mode === 'use' && flow.base_flow_id) {
+      const baseFlow = await app.prisma.flowDefinition.findUnique({
+        where: { id: flow.base_flow_id },
+      });
+      if (baseFlow) {
+        return {
+          ...flow,
+          definition: {
+            ...(baseFlow.definition as any),
+            id: flow.id,
+            name: flow.name,
+            display_name: flow.display_name,
+            extends: flow.base_flow_id,
+            extension_mode: 'use',
+            base_version: (baseFlow.definition as any).version,
+          },
+        };
+      }
+    }
+
     return flow;
   });
 
@@ -42,6 +64,28 @@ export default async function flowRoutes(app: FastifyInstance) {
 
     if (!flow) {
       return reply.code(404).send({ error: 'Flow not found' });
+    }
+
+    // Resolve Use mode — load base flow definition instead
+    const def = flow.definition as any;
+    if (def.extension_mode === 'use' && flow.base_flow_id) {
+      const baseFlow = await app.prisma.flowDefinition.findUnique({
+        where: { id: flow.base_flow_id },
+      });
+      if (baseFlow) {
+        return {
+          ...flow,
+          definition: {
+            ...(baseFlow.definition as any),
+            id: flow.id,
+            name: flow.name,
+            display_name: flow.display_name,
+            extends: flow.base_flow_id,
+            extension_mode: 'use',
+            base_version: (baseFlow.definition as any).version,
+          },
+        };
+      }
     }
 
     return flow;
