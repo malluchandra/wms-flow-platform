@@ -11,6 +11,8 @@ interface StepNodeData {
   isEntry?: boolean;
   severity?: string;
   transitions?: Array<{ key: string; display: string; target?: string }>;
+  stepSource?: 'base' | 'partner' | 'override';
+  extensionPoint?: string;
   [key: string]: unknown;
 }
 
@@ -67,6 +69,27 @@ export const StepNode = memo(function StepNode({ data, selected }: NodeProps) {
       }}
     >
       <Handle type="target" position={Position.Top} style={{ background: '#94a3b8', width: 6, height: 6 }} />
+
+      {/* Source indicator dot */}
+      {d.stepSource && (
+        <div style={{
+          position: 'absolute', top: '4px', left: '4px',
+          width: '8px', height: '8px', borderRadius: '50%',
+          background: d.stepSource === 'base' ? 'var(--text-xmuted)'
+            : d.stepSource === 'partner' ? 'var(--accent)' : 'var(--warn)',
+        }} title={`Source: ${d.stepSource}`} />
+      )}
+
+      {/* Extension point badge */}
+      {d.extensionPoint && (
+        <div style={{
+          position: 'absolute', bottom: '-10px', left: '50%', transform: 'translateX(-50%)',
+          background: 'var(--success)', color: '#fff', fontSize: '9px', fontWeight: 700,
+          padding: '1px 6px', borderRadius: '3px', whiteSpace: 'nowrap',
+        }}>
+          + {d.extensionPoint}
+        </div>
+      )}
 
       {/* Badge */}
       <span className={`node-badge ${badgeClass}`}>

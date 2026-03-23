@@ -17,6 +17,7 @@ interface TopBarProps {
   onPublish: () => void;
   saving?: boolean;
   linterPass?: boolean;
+  extensionMode?: string;
 }
 
 const TABS: { id: ViewTab; label: string }[] = [
@@ -43,6 +44,7 @@ export function TopBar({
   onPublish,
   saving = false,
   linterPass = true,
+  extensionMode,
 }: TopBarProps) {
   const { showToast } = useToast();
   const envIdx = ENV_CYCLE.findIndex((e) => e.label.toLowerCase() === environment.toLowerCase());
@@ -148,6 +150,18 @@ export function TopBar({
         >
           {ENV_CYCLE[currentEnvIdx].label}
         </span>
+
+        {/* Extension mode badge */}
+        {extensionMode && (
+          <span style={{
+            padding: '2px 8px', borderRadius: '3px', fontSize: '10px', fontWeight: 600,
+            background: extensionMode === 'use' ? 'var(--accent-lt)' : extensionMode === 'fork' ? 'var(--warn-lt)' : 'var(--success-lt)',
+            color: extensionMode === 'use' ? 'var(--accent)' : extensionMode === 'fork' ? 'var(--warn)' : 'var(--success)',
+            textTransform: 'uppercase',
+          }}>
+            {extensionMode}
+          </span>
+        )}
 
         {/* Save / Publish */}
         <button className="btn-ghost btn-sm" onClick={onSave} disabled={saving}>

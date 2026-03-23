@@ -182,6 +182,8 @@ function layoutNodes(flow: FlowDefinition): Node[] {
         isEntry: step.id === flow.entry_step,
         severity: step.severity,
         transitions: buildTransitionTags(step),
+        stepSource: step._source,
+        extensionPoint: step.extension_point,
       },
     });
   }
@@ -216,6 +218,8 @@ function layoutNodes(flow: FlowDefinition): Node[] {
         isEntry: false,
         severity: step.severity,
         transitions: buildTransitionTags(step),
+        stepSource: step._source,
+        extensionPoint: step.extension_point,
       },
     });
   }

@@ -116,13 +116,18 @@ function FlowEditorInner({
 
   const handleDeleteStep = useCallback(() => {
     if (!selectedStepId) return;
+    const step = currentFlow.steps.find((s) => s.id === selectedStepId);
+    if (step?._source === 'base') {
+      showToast('Cannot delete inherited base step');
+      return;
+    }
     setCurrentFlow((prev) => ({
       ...prev,
       steps: prev.steps.filter((s) => s.id !== selectedStepId),
     }));
     setSelectedStepId(null);
     showToast('Step deleted');
-  }, [selectedStepId, showToast]);
+  }, [selectedStepId, currentFlow.steps, showToast]);
 
   const handleDuplicateStep = useCallback(() => {
     if (!selectedStep) return;
@@ -164,6 +169,7 @@ function FlowEditorInner({
         onPublish={handlePublish}
         saving={saving}
         linterPass={linterPass}
+        extensionMode={currentFlow.extension_mode}
       />
 
       <div className="flex flex-1 overflow-hidden" style={{ paddingTop: 'var(--topbar-h)' }}>
