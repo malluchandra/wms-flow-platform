@@ -6,6 +6,7 @@ model Tenant {
   created_at DateTime @default(now()) @db.Timestamptz()
 
   workers         Worker[]
+  builder_users   BuilderUser[]
   flow_definitions FlowDefinition[]
   items           Item[]
   locations       Location[]
@@ -41,5 +42,24 @@ model Worker {
 
   @@unique([tenant_id, badge_id])
   @@map("workers")
+  @@schema("auth")
+}
+
+model BuilderUser {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenant_id     String   @db.Uuid
+  email         String
+  name          String
+  password_hash String
+  role          String   @default("flow-author")
+  is_super      Boolean  @default(false)
+  is_active     Boolean  @default(true)
+  created_at    DateTime @default(now()) @db.Timestamptz()
+  updated_at    DateTime @default(now()) @updatedAt @db.Timestamptz()
+
+  tenant Tenant @relation(fields: [tenant_id], references: [id])
+
+  @@unique([tenant_id, email])
+  @@map("builder_users")
   @@schema("auth")
 }
