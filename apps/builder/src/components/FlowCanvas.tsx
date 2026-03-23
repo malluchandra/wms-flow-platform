@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from 'react';
 import {
   ReactFlow,
   Background,
+  BackgroundVariant,
   Controls,
   type Node,
   type Edge,
@@ -351,7 +352,7 @@ export function FlowCanvas({ flow, selectedStepId, onSelectStep, onFlowChange }:
         proOptions={{ hideAttribution: true }}
         style={{ background: 'var(--bg-subtle)' }}
       >
-        <Background variant="lines" gap={24} size={1} color="var(--border)" />
+        <Background variant={BackgroundVariant.Lines} gap={24} size={1} color="var(--border)" />
         <Controls
           showInteractive={false}
           style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '4px' }}
